@@ -1,91 +1,73 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Calendar, momentLocalizer, View } from "react-big-calendar";
-import moment from "moment";
-import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
-import PermissionGate from "@/components/PermissionGate";
-import { useAuth } from "@/components/AuthProvider";
-import { PlusIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { supabase } from "@/lib/supabase";
-import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
-import "react-big-calendar/lib/css/react-big-calendar.css";
-import styles from "./calendar.module.css";
+import { useState, useEffect } from 'react';
+import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
+import format from 'date-fns/format';
+import parse from 'date-fns/parse';
+import startOfWeek from 'date-fns/startOfWeek';
+import getDay from 'date-fns/getDay';
+import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/components/AuthProvider';
+import { 
+  Calendar as CalendarIcon, 
+  Clock, 
+  BarChart3, 
+  CheckCircle, 
+  PlusCircle,
+  User, 
+  Settings, 
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Inbox
+} from "lucide-react";
 
-// Setup localizer for calendar
-const localizer = momentLocalizer(moment);
+import 'react-big-calendar/lib/css/react-big-calendar.css';
 
+// Date-fns setup for calendar
+const locales = {
+  'en-US': require('date-fns/locale/en-US')
+};
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek,
+  getDay,
+  locales,
+});
+
+// Event interface
 interface CalendarEvent {
   id: string;
   title: string;
   start: Date;
   end: Date;
-  user_id: string;
-  notes?: string;
+  description?: string;
+  location?: string;
+  allDay?: boolean;
+  color?: string;
 }
-
-// Add this interface near your other interfaces
-interface ManualSection {
-  id: string;
-  title: string;
-  description: string;
-  icon?: string;
-  order_index: number;
-}
-
-// Add this function to map view names to Moment duration units
-const getUnitForView = (
-  view: string
-): moment.unitOfTime.DurationConstructor => {
-  switch (view) {
-    case "month":
-      return "month";
-    case "week":
-      return "week";
-    case "day":
-      return "day";
-    case "agenda":
-      return "day"; // Adjust as needed
-    default:
-      return "month";
-  }
-};
 
 export default function CalendarPage() {
-  const { user, hasPermission } = useAuth();
+  const { user, loading } = useAuth();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [showEventForm, setShowEventForm] = useState(false);
-  const [showRequestForm, setShowRequestForm] = useState(false);
-  const [formData, setFormData] = useState({
-    title: "",
-    start_date: "",
-    end_date: "",
-    description: "",
-  });
-  // Fix: Add proper type annotation here
-  const [sections, setSections] = useState<ManualSection[]>([]);
-  const [error, setError] = useState("");
-
-  // Use the updated hook with setTimedOut
-  const { loading, setLoading, timedOut, setTimedOut } = useLoadingTimeout(
-    true,
-    8000
-  );
-
-  // Add state for current date and view
+  const [isLoading, setIsLoading] = useState(true);
+  const [view, setView] = useState('month');
   const [date, setDate] = useState(new Date());
-  const [view, setView] = useState<View>("month" as View);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [newEvent, setNewEvent] = useState({
+    title: '',
+    start: new Date(),
+    end: new Date(new Date().setHours(new Date().getHours() + 1)),
+    description: '',
+    location: '',
+    allDay: false
+  });
 
-  // Add these handlers for navigation
-  const handleNavigate = (newDate: Date) => {
-    setDate(newDate);
-  };
-
-  const handleView = (newView: View) => {
-    setView(newView);
-  };
-
-  // Fetch events from database
   useEffect(() => {
     if (user) {
       fetchEvents();
@@ -93,493 +75,395 @@ export default function CalendarPage() {
   }, [user]);
 
   const fetchEvents = async () => {
-    console.log("Fetching reservations...");
-    setLoading(true);
     try {
-      // Change "events" to "reservations"
-      const { data, error } = await supabase.from("reservations").select("*");
-
-      console.log("Raw reservations data:", data);
-      console.log("Error:", error);
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        console.log("No reservations found, using empty array");
-        setEvents([]);
-        return;
-      }
-
-      // Convert to calendar events
-      const calendarEvents = data.map((reservation) => ({
-        id: reservation.id,
-        title: reservation.title,
-        start: new Date(reservation.start_date),
-        end: new Date(reservation.end_date),
-        user_id: reservation.user_id,
-        // Use description instead of notes
-        notes: reservation.description,
-      }));
-
-      console.log("Calendar events:", calendarEvents);
-      setEvents(calendarEvents);
-    } catch (error) {
-      console.error("Error loading reservations:", error);
-      // Set events to empty array on error
-      setEvents([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSections = async () => {
-    setLoading(true);
-    try {
-      console.log("Fetching sections...");
-      const startTime = performance.now();
-
-      const { data, error, status } = await supabase
-        .from("manual_sections")
-        .select("*")
-        .order("order_index");
-
-      const endTime = performance.now();
-      console.log(`Sections query completed in ${endTime - startTime}ms`);
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('user_id', user?.id);
 
       if (error) {
-        console.error("Error fetching sections:", error);
-        console.error("Status code:", status);
         throw error;
       }
 
-      console.log(`Received ${data?.length || 0} sections`);
-      setSections(data || []);
-
-      // If no sections found and no explicit error, log this condition
-      if (!data || data.length === 0) {
-        console.warn(
-          "No sections found in database, this may be expected for new setups"
-        );
+      if (data) {
+        // Transform database events to calendar events
+        const calendarEvents = data.map(event => ({
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start_time),
+          end: new Date(event.end_time),
+          description: event.description,
+          location: event.location,
+          allDay: event.all_day,
+          color: event.color || '#3B82F6' // Default to blue
+        }));
+        
+        setEvents(calendarEvents);
       }
     } catch (error) {
-      console.error("Exception in fetchSections:", error);
-      // Set an error state that can be shown to users
-      setError(
-        "Failed to load sections. Please check your connection and try again."
-      );
+      console.error('Error fetching events:', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
+  const handleEventSelect = (event: CalendarEvent) => {
+    setSelectedEvent(event);
+    setShowEventModal(true);
+  };
 
+  const handleSlotSelect = ({ start, end }: { start: Date; end: Date }) => {
+    setNewEvent({
+      title: '',
+      start,
+      end,
+      description: '',
+      location: '',
+      allDay: false
+    });
+    setSelectedEvent(null);
+    setShowEventModal(true);
+  };
+
+  const handleSaveEvent = async () => {
     try {
-      const { error } = await supabase.from("reservations").insert([
-        {
-          title: formData.title,
-          start_date: formData.start_date,
-          end_date: formData.end_date,
-          description: formData.description,
-          user_id: user.id,
-        },
-      ]);
+      if (!user) return;
+      
+      const eventData = {
+        user_id: user.id,
+        title: newEvent.title,
+        start_time: newEvent.start.toISOString(),
+        end_time: newEvent.end.toISOString(),
+        description: newEvent.description,
+        location: newEvent.location,
+        all_day: newEvent.allDay
+      };
+
+      if (selectedEvent) {
+        // Update existing event
+        const { error } = await supabase
+          .from('events')
+          .update(eventData)
+          .eq('id', selectedEvent.id);
+
+        if (error) throw error;
+      } else {
+        // Create new event
+        const { error } = await supabase
+          .from('events')
+          .insert([eventData]);
+
+        if (error) throw error;
+      }
+
+      // Refresh events
+      fetchEvents();
+      setShowEventModal(false);
+    } catch (error) {
+      console.error('Error saving event:', error);
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    try {
+      if (!selectedEvent) return;
+
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', selectedEvent.id);
 
       if (error) throw error;
 
-      setShowEventForm(false);
-      setFormData({ title: "", start_date: "", end_date: "", description: "" });
+      // Refresh events
       fetchEvents();
+      setShowEventModal(false);
     } catch (error) {
-      console.error("Error creating event:", error);
-      alert("Failed to create event. Please try again.");
+      console.error('Error deleting event:', error);
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/auth";
+  };
+
+  if (loading || isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return (
-    <ProtectedPageWrapper>
-      <PermissionGate
-        requiredRole="family"
-        fallback={<div className="p-8 text-center">Access restricted</div>}
-      >
-        <div className="py-8 px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              {/* Calendar navigation controls */}
-              <div className="flex items-center space-x-2">
-                <button
-                  className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
-                  onClick={() =>
-                    handleNavigate(
-                      moment(date).subtract(1, getUnitForView(view)).toDate()
-                    )
-                  }
-                >
-                  Back
-                </button>
-
-                <button
-                  className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
-                  onClick={() => handleNavigate(new Date())}
-                >
-                  Today
-                </button>
-
-                <button
-                  className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
-                  onClick={() =>
-                    handleNavigate(
-                      moment(date).add(1, getUnitForView(view)).toDate()
-                    )
-                  }
-                >
-                  Next
-                </button>
-
-                <h2 className="text-xl font-semibold ml-2">
-                  {moment(date).format("MMMM YYYY")}
-                </h2>
-              </div>
-
-              {/* View type selection */}
-              <div className="flex space-x-1">
-                <button
-                  className={`px-3 py-1 rounded ${
-                    view === "month" ? "bg-blue-500 text-white" : "bg-gray-100"
-                  }`}
-                  onClick={() => handleView("month" as View)}
-                >
-                  Month
-                </button>
-                <button
-                  className={`px-3 py-1 rounded ${
-                    view === "week" ? "bg-blue-500 text-white" : "bg-gray-100"
-                  }`}
-                  onClick={() => handleView("week" as View)}
-                >
-                  Week
-                </button>
-                <button
-                  className={`px-3 py-1 rounded ${
-                    view === "day" ? "bg-blue-500 text-white" : "bg-gray-100"
-                  }`}
-                  onClick={() => handleView("day" as View)}
-                >
-                  Day
-                </button>
-                <button
-                  className={`px-3 py-1 rounded ${
-                    view === "agenda" ? "bg-blue-500 text-white" : "bg-gray-100"
-                  }`}
-                  onClick={() => handleView("agenda" as View)}
-                >
-                  Agenda
-                </button>
-              </div>
-
-              {/* Different buttons based on permission */}
-              {hasPermission("manager") ? (
-                <button
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg"
-                  onClick={() => setShowEventForm(true)}
-                >
-                  <PlusIcon className="h-5 w-5 mr-1" />
-                  Add Event
-                </button>
-              ) : (
-                <button
-                  className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg"
-                  onClick={() => setShowRequestForm(true)}
-                >
-                  Request Time
-                </button>
-              )}
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className="hidden md:flex flex-col w-64 bg-white border-r">
+        <div className="flex items-center justify-center h-16 border-b">
+          <h1 className="text-xl font-semibold text-gray-800">Stia</h1>
+        </div>
+        
+        <div className="flex flex-col flex-1 p-4 space-y-2">
+          <Link href="/dashboard" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md">
+            <BarChart3 className="w-5 h-5 mr-3" />
+            Dashboard
+          </Link>
+          <Link href="/tasks" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md">
+            <CheckCircle className="w-5 h-5 mr-3" />
+            Tasks
+          </Link>
+          <Link href="/calendar" className="flex items-center px-4 py-3 text-gray-900 bg-blue-50 rounded-md font-medium">
+            <CalendarIcon className="w-5 h-5 mr-3" />
+            Calendar
+          </Link>
+          <Link href="/inventory" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md">
+            <Inbox className="w-5 h-5 mr-3" />
+            Inventory
+          </Link>
+        </div>
+        
+        <div className="p-4 border-t">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+              <User className="w-5 h-5 text-blue-600" />
             </div>
-
-            {/* Make sure calendar has explicit height */}
-            <div className={styles.calendarContainer}>
-              {loading && !timedOut ? (
-                <div>Loading...</div>
-              ) : timedOut ? (
-                <div className="text-center p-8">
-                  <p className="text-red-500">Loading timed out</p>
-                  <p className="text-gray-600 mt-1">
-                    There might be an issue connecting to the database.
-                  </p>
-                  <button
-                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md"
-                    onClick={() => {
-                      setTimedOut(false); // Now this will work
-                      setLoading(true);
-                      fetchEvents();
-                    }}
-                  >
-                    Retry
-                  </button>
-                  <button
-                    className="mt-4 ml-2 px-4 py-2 border border-gray-300 rounded-md"
-                    onClick={() =>
-                      (window.location.href = "/admin/diagnostics")
-                    }
-                  >
-                    Run Diagnostics
-                  </button>
-                </div>
-              ) : (
-                <Calendar
-                  localizer={localizer}
-                  events={events}
-                  startAccessor="start"
-                  endAccessor="end"
-                  className={styles.calendarView}
-                  date={date}
-                  view={view}
-                  onNavigate={handleNavigate}
-                  onView={handleView}
-                />
-              )}
+            <div className="ml-3">
+              <p className="text-sm font-medium">{user?.email}</p>
+              <p className="text-xs text-gray-500">Owner</p>
+            </div>
+          </div>
+          
+          <div className="mt-4 space-y-2">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center w-full px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-md"
+            >
+              <LogOut className="w-4 h-4 mr-3" />
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Mobile Nav */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b z-10 px-4">
+        <div className="flex items-center justify-between h-16">
+          <h1 className="text-xl font-semibold text-gray-800">Stia</h1>
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className="p-2 rounded-md hover:bg-gray-100"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+        
+        {isMenuOpen && (
+          <div className="absolute top-16 left-0 right-0 bg-white border-b shadow-lg z-20">
+            <div className="py-2">
+              <Link href="/dashboard" className="block px-4 py-2 text-gray-600">Dashboard</Link>
+              <Link href="/tasks" className="block px-4 py-2 text-gray-600">Tasks</Link>
+              <Link href="/calendar" className="block px-4 py-2 text-gray-900 font-medium">Calendar</Link>
+              <Link href="/inventory" className="block px-4 py-2 text-gray-600">Inventory</Link>
+              <hr className="my-2" />
+              <button
+                onClick={handleSignOut}
+                className="block w-full text-left px-4 py-2 text-gray-600"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="md:p-8 p-4 pt-20 md:pt-8 max-w-7xl mx-auto">
+          <header className="mb-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+              <button 
+                onClick={() => handleSlotSelect({ start: new Date(), end: new Date(new Date().setHours(new Date().getHours() + 1)) })}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center"
+              >
+                <PlusCircle className="w-4 h-4 mr-2" />
+                New Event
+              </button>
+            </div>
+          </header>
+          
+          {/* Calendar Component */}
+          <div className="bg-white p-4 rounded-lg shadow">
+            <div className="h-[700px]">
+              <BigCalendar
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: '100%' }}
+                views={['month', 'week', 'day']}
+                onSelectEvent={handleEventSelect}
+                onSelectSlot={handleSlotSelect}
+                selectable
+                popup
+                eventPropGetter={(event) => ({
+                  style: {
+                    backgroundColor: event.color || '#3B82F6',
+                    borderRadius: '4px'
+                  },
+                })}
+              />
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Event form modal */}
-        {showEventForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
-              <div className="flex justify-between items-center p-4 border-b">
-                <h2 className="text-lg font-semibold">Add New Event</h2>
+      {/* Event Modal */}
+      {showEventModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md p-6">
+            <h2 className="text-xl font-semibold mb-4">
+              {selectedEvent ? 'Edit Event' : 'Create New Event'}
+            </h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={selectedEvent ? selectedEvent.title : newEvent.title}
+                  onChange={(e) => selectedEvent 
+                    ? setSelectedEvent({...selectedEvent, title: e.target.value})
+                    : setNewEvent({...newEvent, title: e.target.value})
+                  }
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Event title"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                  <input
+                    type="datetime-local"
+                    value={formatDateForInput(selectedEvent ? selectedEvent.start : newEvent.start)}
+                    onChange={(e) => {
+                      const date = new Date(e.target.value);
+                      selectedEvent 
+                        ? setSelectedEvent({...selectedEvent, start: date})
+                        : setNewEvent({...newEvent, start: date});
+                    }}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End</label>
+                  <input
+                    type="datetime-local"
+                    value={formatDateForInput(selectedEvent ? selectedEvent.end : newEvent.end)}
+                    onChange={(e) => {
+                      const date = new Date(e.target.value);
+                      selectedEvent 
+                        ? setSelectedEvent({...selectedEvent, end: date})
+                        : setNewEvent({...newEvent, end: date});
+                    }}
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <input
+                  type="text"
+                  value={selectedEvent ? selectedEvent.location || '' : newEvent.location}
+                  onChange={(e) => selectedEvent 
+                    ? setSelectedEvent({...selectedEvent, location: e.target.value})
+                    : setNewEvent({...newEvent, location: e.target.value})
+                  }
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Event location"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={selectedEvent ? selectedEvent.description || '' : newEvent.description}
+                  onChange={(e) => selectedEvent 
+                    ? setSelectedEvent({...selectedEvent, description: e.target.value})
+                    : setNewEvent({...newEvent, description: e.target.value})
+                  }
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-md"
+                  placeholder="Event description"
+                />
+              </div>
+              
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="allDay"
+                  checked={selectedEvent ? selectedEvent.allDay || false : newEvent.allDay}
+                  onChange={(e) => selectedEvent 
+                    ? setSelectedEvent({...selectedEvent, allDay: e.target.checked})
+                    : setNewEvent({...newEvent, allDay: e.target.checked})
+                  }
+                  className="h-4 w-4 text-blue-600 rounded"
+                />
+                <label htmlFor="allDay" className="ml-2 text-sm text-gray-700">
+                  All day event
+                </label>
+              </div>
+            </div>
+            
+            <div className="mt-6 flex justify-between">
+              <div>
+                {selectedEvent && (
+                  <button
+                    onClick={handleDeleteEvent}
+                    className="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-x-3">
                 <button
-                  onClick={() => setShowEventForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                  aria-label="Close"
+                  onClick={() => setShowEventModal(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md"
                 >
-                  <XMarkIcon className="h-6 w-6" />
+                  Cancel
+                </button>
+                
+                <button
+                  onClick={handleSaveEvent}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                >
+                  Save
                 </button>
               </div>
-
-              <form onSubmit={handleCreateEvent} className="p-4">
-                <div className="mb-4">
-                  <label
-                    htmlFor="title"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    id="title"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="start_date"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Start Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    id="start_date"
-                    value={formData.start_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, start_date: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="end_date"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    End Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    id="end_date"
-                    value={formData.end_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, end_date: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="description"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowEventForm(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                  >
-                    Create Event
-                  </button>
-                </div>
-              </form>
             </div>
           </div>
-        )}
-
-        {/* Request form modal */}
-        {showRequestForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
-              <div className="flex justify-between items-center p-4 border-b">
-                <h2 className="text-lg font-semibold">Request Reservation</h2>
-                <button
-                  onClick={() => setShowRequestForm(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                  aria-label="Close"
-                >
-                  <XMarkIcon className="h-6 w-6" />
-                </button>
-              </div>
-
-              <form onSubmit={handleCreateEvent} className="p-4">
-                <div className="mb-4">
-                  <label
-                    htmlFor="request-title"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    id="request-title"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="Enter event title"
-                    title="Event title"
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="request-start-date"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Start Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    id="request-start-date"
-                    value={formData.start_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, start_date: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    title="Event start date and time"
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="request-end-date"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    End Date & Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    id="request-end-date"
-                    value={formData.end_date}
-                    onChange={(e) =>
-                      setFormData({ ...formData, end_date: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    title="Event end date and time"
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label
-                    htmlFor="request-description"
-                    className="block text-sm font-medium text-gray-700 mb-1"
-                  >
-                    Description
-                  </label>
-                  <textarea
-                    id="request-description"
-                    value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    placeholder="Describe the purpose of your reservation"
-                    title="Event description"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="mt-2 p-3 bg-yellow-50 text-yellow-800 rounded-md mb-4">
-                  <p className="text-sm">
-                    Your reservation request will be reviewed by management.
-                  </p>
-                </div>
-
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowRequestForm(false)}
-                    className="px-4 py-2 border border-gray-300 rounded-md"
-                    title="Cancel request"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    title="Submit reservation request"
-                  >
-                    Submit Request
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-      </PermissionGate>
-    </ProtectedPageWrapper>
+        </div>
+      )}
+    </div>
   );
+}
+
+// Helper for formatting dates for datetime-local input
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
