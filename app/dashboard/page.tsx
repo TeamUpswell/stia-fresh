@@ -4,18 +4,19 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
-import { 
-  Calendar, 
-  Clock, 
-  BarChart3, 
-  CheckCircle, 
+import {
+  Calendar,
+  Clock,
+  BarChart3,
+  CheckCircle,
   PlusCircle,
-  User, 
-  Settings, 
-  LogOut, 
+  User,
+  Settings,
+  LogOut,
   Bell,
   ChevronRight,
-  Inbox
+  Inbox,
+  Users
 } from "lucide-react";
 
 export default function Dashboard() {
@@ -33,42 +34,42 @@ export default function Dashboard() {
     // Fetch dashboard data
     async function fetchDashboardData() {
       if (!user) return;
-      
+
       try {
         // Example query - replace with your actual data model
         const { data: tasksData, error: tasksError } = await supabase
-          .from('tasks')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
+          .from("tasks")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
           .limit(5);
-          
+
         if (!tasksError && tasksData) {
           // Calculate stats
-          const completed = tasksData.filter(t => t.status === 'completed').length;
-          
+          const completed = tasksData.filter(t => t.status === "completed").length;
+
           setStats({
             tasksCompleted: completed,
-            tasksInProgress: tasksData.filter(t => t.status === 'in_progress').length,
+            tasksInProgress: tasksData.filter(t => t.status === "in_progress").length,
             upcomingEvents: 3, // Replace with actual count
-            totalProjects: 2   // Replace with actual count
+            totalProjects: 2 // Replace with actual count
           });
-          
+
           setRecentItems(tasksData);
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       }
     }
-    
+
     fetchDashboardData();
   }, [user]);
-  
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     window.location.href = "/auth";
   };
-  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -84,7 +85,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-center h-16 border-b">
           <h1 className="text-xl font-semibold text-gray-800">Stia</h1>
         </div>
-        
+
         <div className="flex flex-col flex-1 p-4 space-y-2">
           <Link href="/dashboard" className="flex items-center px-4 py-3 text-gray-900 bg-blue-50 rounded-md font-medium">
             <BarChart3 className="w-5 h-5 mr-3" />
@@ -102,8 +103,14 @@ export default function Dashboard() {
             <Inbox className="w-5 h-5 mr-3" />
             Inventory
           </Link>
+          {user?.isAdmin && (
+            <Link href="/admin/users" className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md">
+              <Users className="w-5 h-5 mr-3" />
+              User Management
+            </Link>
+          )}
         </div>
-        
+
         <div className="p-4 border-t">
           <div className="flex items-center">
             <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -114,7 +121,6 @@ export default function Dashboard() {
               <p className="text-xs text-gray-500">Owner</p>
             </div>
           </div>
-          
           <div className="mt-4 space-y-2">
             <button
               onClick={handleSignOut}
@@ -126,12 +132,12 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      
+
       {/* Mobile Nav */}
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b z-10 px-4">
         <div className="flex items-center justify-between h-16">
           <h1 className="text-xl font-semibold text-gray-800">Stia</h1>
-          <button 
+          <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="p-2 rounded-md hover:bg-gray-100"
           >
@@ -140,7 +146,6 @@ export default function Dashboard() {
             </svg>
           </button>
         </div>
-        
         {isMenuOpen && (
           <div className="absolute top-16 left-0 right-0 bg-white border-b shadow-lg">
             <div className="py-2">
@@ -159,15 +164,15 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-      
+
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="md:p-8 p-4 pt-20 md:pt-8 max-w-7xl mx-auto">
           <header className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.email?.split('@')[0]}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.email?.split("@")[0]}</h1>
             <p className="text-gray-600">Here's what's happening with your projects today.</p>
           </header>
-          
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div className="bg-white rounded-lg shadow p-6">
@@ -181,7 +186,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <div className="rounded-full p-3 bg-green-100">
@@ -193,7 +198,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <div className="rounded-full p-3 bg-purple-100">
@@ -205,7 +210,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <div className="rounded-full p-3 bg-yellow-100">
@@ -218,7 +223,7 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
+
           {/* Quick Actions */}
           <section className="mb-8">
             <h2 className="text-lg font-semibold mb-4 text-gray-900">Quick Actions</h2>
@@ -228,19 +233,16 @@ export default function Dashboard() {
                 <h3 className="font-medium">New Task</h3>
                 <p className="text-sm text-gray-500">Create a task or to-do</p>
               </Link>
-              
               <Link href="/calendar/event/new" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
                 <Calendar className="h-6 w-6 text-blue-600 mb-2" />
                 <h3 className="font-medium">Schedule Event</h3>
                 <p className="text-sm text-gray-500">Add to your calendar</p>
               </Link>
-              
               <Link href="/inventory/new" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
                 <Inbox className="h-6 w-6 text-blue-600 mb-2" />
                 <h3 className="font-medium">Add to Inventory</h3>
                 <p className="text-sm text-gray-500">Track new items</p>
               </Link>
-              
               <Link href="/settings/profile" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
                 <Settings className="h-6 w-6 text-blue-600 mb-2" />
                 <h3 className="font-medium">Account Settings</h3>
@@ -248,7 +250,7 @@ export default function Dashboard() {
               </Link>
             </div>
           </section>
-          
+
           {/* Recent Activity */}
           <section className="mb-8">
             <div className="flex items-center justify-between mb-4">
@@ -257,7 +259,7 @@ export default function Dashboard() {
                 View all
               </Link>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow overflow-hidden">
               {recentItems.length > 0 ? (
                 <ul className="divide-y divide-gray-200">
@@ -268,9 +270,9 @@ export default function Dashboard() {
                           <div className="flex items-center justify-between">
                             <p className="font-medium text-gray-900">{item.title || "Task title"}</p>
                             <span className={`text-xs px-2 py-1 rounded-full ${
-                              item.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                              item.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 
-                              'bg-yellow-100 text-yellow-800'
+                              item.status === "completed" ? "bg-green-100 text-green-800" : 
+                              item.status === "in_progress" ? "bg-blue-100 text-blue-800" : 
+                              "bg-yellow-100 text-yellow-800"
                             }`}>
                               {item.status || "pending"}
                             </span>

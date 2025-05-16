@@ -62,10 +62,15 @@ export default function TasksPage() {
     title: "",
     description: "",
     due_date: "",
+    assigned_to: "", // Add this field
   });
   // Fix the type here
   const [sections, setSections] = useState<ManualSection[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Add this with your other state variables
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [users, setUsers] = useState<any[]>([]); // Add this state variable
 
   const { loading, setLoading, timedOut, setTimedOut } = useLoadingTimeout(
     true,
@@ -137,6 +142,23 @@ export default function TasksPage() {
     }
   };
 
+  // Fetch users for assignment
+  useEffect(() => {
+    if (user) {
+      async function fetchUsers() {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, full_name, email");
+
+        if (!error && data) {
+          setUsers(data);
+        }
+      }
+
+      fetchUsers();
+    }
+  }, [user]);
+
   // Add a new task
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +171,7 @@ export default function TasksPage() {
           description: formData.description,
           due_date: formData.due_date || null,
           created_by: user.id,
-          assigned_to: null,
+          assigned_to: formData.assigned_to || null, // Add this line
           status: "pending",
         },
       ]);
@@ -157,7 +179,12 @@ export default function TasksPage() {
       if (error) throw error;
 
       setIsAddingTask(false);
-      setFormData({ title: "", description: "", due_date: "" });
+      setFormData({
+        title: "",
+        description: "",
+        due_date: "",
+        assigned_to: "",
+      });
       fetchTasks();
     } catch (error) {
       console.error("Error adding task:", error);
@@ -202,6 +229,34 @@ export default function TasksPage() {
     }
   };
 
+  // Add this function after handleDeleteTask
+  const handleUpdateTaskStatus = async (
+    taskId: string,
+    status: "pending" | "in_progress" | "completed"
+  ) => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          status: status,
+        })
+        .eq("id", taskId);
+
+      if (error) throw error;
+      fetchTasks();
+    } catch (error) {
+      console.error("Error updating task status:", error);
+    }
+  };
+
+  // Add this function to filter tasks
+  const filteredTasks = tasks.filter((task) => {
+    if (statusFilter === "all") return true;
+    return task.status === statusFilter;
+  });
+
   return (
     <ProtectedPageWrapper>
       <PermissionGate
@@ -226,6 +281,52 @@ export default function TasksPage() {
                 <PlusIcon className="h-5 w-5 mr-1" />
                 Add Task
               </button>
+            </div>
+
+            {/* Add this before the tasks.map block */}
+            <div className="mb-6">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    statusFilter === "all"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setStatusFilter("pending")}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    statusFilter === "pending"
+                      ? "bg-yellow-600 text-white"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  Pending
+                </button>
+                <button
+                  onClick={() => setStatusFilter("in_progress")}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    statusFilter === "in_progress"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  In Progress
+                </button>
+                <button
+                  onClick={() => setStatusFilter("completed")}
+                  className={`px-3 py-1 text-sm rounded-md ${
+                    statusFilter === "completed"
+                      ? "bg-green-600 text-white"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  Completed
+                </button>
+              </div>
             </div>
 
             {loading && !timedOut ? (
@@ -254,32 +355,142 @@ export default function TasksPage() {
                 </button>
               </div>
             ) : tasks.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <p className="text-gray-600">No tasks found</p>
-                <p className="text-gray-500 text-sm mt-2">
-                  Add your first task to get started
+              <div className="text-center py-12 bg-white rounded-lg border border-dashed border-gray-300">
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                  />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  No tasks
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Get started by creating a new task
                 </p>
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingTask(true)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                  >
+                    <PlusIcon
+                      className="-ml-1 mr-2 h-5 w-5"
+                      aria-hidden="true"
+                    />
+                    New Task
+                  </button>
+                </div>
+              </div>
+            ) : filteredTasks.length === 0 ? (
+              <div className="text-center py-8 bg-white rounded-lg border">
+                <p className="text-gray-500">
+                  No tasks match the current filter
+                </p>
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className="mt-2 text-blue-600 hover:text-blue-800"
+                >
+                  Clear filter
+                </button>
               </div>
             ) : (
               <div className="space-y-4">
-                {tasks.map((task) => (
+                {filteredTasks.map((task) => (
                   <div
                     key={task.id}
-                    className="mb-4 p-4 border rounded-lg bg-white"
+                    className={`mb-4 p-4 border rounded-lg bg-white ${
+                      task.status === "completed"
+                        ? "border-green-200 bg-green-50"
+                        : task.status === "in_progress"
+                        ? "border-blue-200 bg-blue-50"
+                        : ""
+                    }`}
                   >
-                    <h3 className="font-medium text-lg">{task.title}</h3>
+                    <div className="flex justify-between">
+                      <h3
+                        className={`font-medium text-lg ${
+                          task.status === "completed"
+                            ? "line-through text-gray-500"
+                            : ""
+                        }`}
+                      >
+                        {task.title}
+                      </h3>
+
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          task.status === "completed"
+                            ? "bg-green-100 text-green-800"
+                            : task.status === "in_progress"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {task.status.replace("_", " ")}
+                      </span>
+                    </div>
+
                     <p className="text-gray-600 mt-1">{task.description}</p>
 
                     <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-2">
-                      <p>Status: {task.status.replace("_", " ")}</p>
                       {task.due_date && (
+                        <p className="flex items-center">
+                          <span className="mr-1">Due:</span>
+                          <span
+                            className={`${
+                              new Date(task.due_date) < new Date() &&
+                              task.status !== "completed"
+                                ? "text-red-600 font-medium"
+                                : ""
+                            }`}
+                          >
+                            {new Date(task.due_date).toLocaleDateString()}
+                          </span>
+                        </p>
+                      )}
+                      {task.assigned_to && (
                         <p>
-                          Due: {new Date(task.due_date).toLocaleDateString()}
+                          Assigned to:{" "}
+                          {task.assigned_to === user?.id
+                            ? "You"
+                            : task.assigned_to}
                         </p>
                       )}
                     </div>
 
                     <div className="mt-4 flex gap-2">
+                      {/* Status update buttons */}
+                      {task.status !== "completed" && (
+                        <button
+                          onClick={() =>
+                            handleUpdateTaskStatus(task.id, "completed")
+                          }
+                          className="px-3 py-1 bg-green-500 text-white text-sm rounded-md"
+                        >
+                          Complete
+                        </button>
+                      )}
+
+                      {task.status === "completed" && (
+                        <button
+                          onClick={() =>
+                            handleUpdateTaskStatus(task.id, "pending")
+                          }
+                          className="px-3 py-1 bg-gray-500 text-white text-sm rounded-md"
+                        >
+                          Reopen
+                        </button>
+                      )}
+
+                      {/* Claim button */}
                       {!task.assigned_to && (
                         <button
                           onClick={() => handleClaimTask(task.id)}
@@ -289,8 +500,9 @@ export default function TasksPage() {
                         </button>
                       )}
 
+                      {/* Delete button */}
                       {(task.created_by === user?.id ||
-                        hasPermission("manager")) && (
+                        (hasPermission && hasPermission("manager"))) && (
                         <button
                           onClick={() => handleDeleteTask(task.id)}
                           className="px-3 py-1 bg-red-500 text-white text-sm rounded-md"
@@ -379,6 +591,30 @@ export default function TasksPage() {
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   />
+                </div>
+
+                <div className="mb-4">
+                  <label
+                    htmlFor="assigned_to"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Assign To (Optional)
+                  </label>
+                  <select
+                    id="assigned_to"
+                    value={formData.assigned_to}
+                    onChange={(e) =>
+                      setFormData({ ...formData, assigned_to: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="">Unassigned</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.full_name || user.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex justify-end gap-2">

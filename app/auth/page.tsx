@@ -7,6 +7,7 @@ export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,13 +38,55 @@ export default function AuthPage() {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: {
+              full_name: name || email.split('@')[0]  // Use name or part of email
+            }
           },
         });
 
         if (error) {
           setError(error.message);
         } else {
-          setMessage("Check your email to confirm your account.");
+          // Check if this is the first user
+          const { count, error: countError } = await supabase
+            .from("profiles")
+            .select("*", { count: "exact", head: true });
+
+          const isFirstUser = !countError && count === 0;
+
+          if (isFirstUser) {
+            // This is the first user - make them an admin
+            const userId = data.user.id;
+
+            // Create admin role
+            await supabase.from("user_roles").insert({
+              user_id: userId,
+              role: "admin",
+              created_at: new Date().toISOString(),
+            });
+
+            // Also add other useful roles
+            await supabase.from("user_roles").insert([
+              {
+                user_id: userId,
+                role: "family",
+                created_at: new Date().toISOString(),
+              },
+              {
+                user_id: userId,
+                role: "manager",
+                created_at: new Date().toISOString(),
+              },
+            ]);
+
+            setMessage(
+              "Account created with admin privileges! Please check your email to verify your account."
+            );
+          } else {
+            setMessage(
+              "Account created! Please check your email to verify your account."
+            );
+          }
         }
       }
     } catch (err) {
@@ -87,6 +130,19 @@ export default function AuthPage() {
           />
         </div>
 
+        <div className="mb-4">
+          <label htmlFor="name" className="block mb-2">
+            Full Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 border rounded"
+          />
+        </div>
+
         <div className="mb-6">
           <label htmlFor="password" className="block mb-2">
             Password
@@ -109,6 +165,32 @@ export default function AuthPage() {
           {isLoading ? "Processing..." : isLogin ? "Sign In" : "Create Account"}
         </button>
       </form>
+
+      {!error && !isLogin && (
+        <div className="mt-4 text-center">
+          <p className="text-sm text-gray-600 mb-2">
+            Didn't receive an email? For development, you can:
+          </p>
+          <button
+            onClick={async () => {
+              // Sign in directly (this will work if auto-confirmation is enabled in Supabase)
+              const { error } = await supabase.auth.signInWithPassword({
+                email, 
+                password
+              });
+              
+              if (!error) {
+                router.push('/dashboard');
+              } else {
+                setError("Auto-login failed. You may need to configure email settings in Supabase.");
+              }
+            }}
+            className="text-blue-600 hover:underline text-sm"
+          >
+            Continue without verification (development only)
+          </button>
+        </div>
+      )}
 
       <div className="text-center mt-6 bg-gray-100 p-3 rounded">
         <button
