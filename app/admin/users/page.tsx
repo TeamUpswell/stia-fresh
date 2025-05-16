@@ -6,17 +6,34 @@ import { useAuth } from "@/components/AuthProvider";
 import Link from "next/link";
 import { UsersRound, Settings, ChevronDown } from "lucide-react";
 
+interface Role {
+  user_id: string;
+  role: string;
+  created_at: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  full_name?: string;
+  avatar_url?: string;
+  created_at: string;
+  updated_at?: string;
+  email_confirmed_at?: string;
+  roles: string[];
+}
+
 export default function UserManagementPage() {
   const { user, hasPermission } = useAuth();
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [roleOptions] = useState(["family", "guest", "manager", "admin"]);
   const [showAddUserForm, setShowAddUserForm] = useState(false);
   const [newUser, setNewUser] = useState({
-    email: '',
-    password: '',
-    full_name: '',
-    roles: []
+    email: "",
+    password: "",
+    full_name: "",
+    roles: [],
   });
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
 
@@ -45,10 +62,10 @@ export default function UserManagementPage() {
       if (rolesError) throw rolesError;
 
       // Combine the data
-      const combinedUsers = profiles.map((profile) => {
+      const combinedUsers: User[] = profiles.map((profile: any) => {
         const userRoles = roles
-          .filter((role) => role.user_id === profile.id)
-          .map((role) => role.role);
+          .filter((role: any) => role.user_id === profile.id)
+          .map((role: any) => role.role);
 
         return {
           ...profile,
@@ -64,29 +81,36 @@ export default function UserManagementPage() {
     }
   };
 
-  // Add this function to identify the original admin
-  const isOriginalAdmin = (userId) => {
+  // Update isOriginalAdmin function
+  const isOriginalAdmin = (userId: string): boolean => {
     // First, find all users with admin role
-    const admins = users.filter(u => u.roles.includes('admin'));
-    
+    const admins = users.filter((u) => u.roles.includes("admin"));
+
     if (admins.length === 0) return false;
-    
+
     // Sort by created_at date to find the first admin
-    admins.sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    admins.sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
-    
+
     // The first admin in the sorted list is the original
     return admins[0].id === userId;
   };
 
-  const handleRoleToggle = async (userId, role) => {
+  // Update handleRoleToggle function
+  const handleRoleToggle = async (
+    userId: string,
+    role: string
+  ): Promise<void> => {
     try {
       const user = users.find((u) => u.id === userId);
+      if (!user) return;
+
       const hasRole = user.roles.includes(role);
-      
+
       // Prevent removing admin role from original admin
-      if (role === 'admin' && isOriginalAdmin(userId) && hasRole) {
+      if (role === "admin" && isOriginalAdmin(userId) && hasRole) {
         alert("Cannot remove admin role from the original account creator.");
         return;
       }
@@ -118,61 +142,62 @@ export default function UserManagementPage() {
     }
   };
 
-  const handleCreateUser = async (e) => {
+  // Update handleCreateUser function
+  const handleCreateUser = async (
+    e: React.FormEvent<HTMLFormElement>
+  ): Promise<void> => {
     e.preventDefault();
-    
+
     try {
       // Create the user in Supabase Auth
       const { data, error } = await supabase.auth.admin.createUser({
         email: newUser.email,
         password: newUser.password,
-        email_confirm: true
+        email_confirm: true,
       });
-      
+
       if (error) throw error;
-      
+
       // The user ID is now available
       const userId = data.user.id;
-      
+
       // Create the profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: userId,
-          email: newUser.email,
-          full_name: newUser.full_name,
-          created_at: new Date().toISOString()
-        });
-        
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: userId,
+        email: newUser.email,
+        full_name: newUser.full_name,
+        created_at: new Date().toISOString(),
+      });
+
       if (profileError) throw profileError;
-      
+
       // Add roles if any are selected
       if (newUser.roles.length > 0) {
-        const roleInserts = newUser.roles.map(role => ({
+        const roleInserts = newUser.roles.map((role) => ({
           user_id: userId,
           role,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
         }));
-        
+
         const { error: rolesError } = await supabase
-          .from('user_roles')
+          .from("user_roles")
           .insert(roleInserts);
-          
+
         if (rolesError) throw rolesError;
       }
-      
+
       // Reset form and refresh
       setNewUser({
-        email: '',
-        password: '',
-        full_name: '',
-        roles: []
+        email: "",
+        password: "",
+        full_name: "",
+        roles: [],
       });
       setShowAddUserForm(false);
       fetchUsers();
-      
-    } catch (error) {
-      console.error('Error creating user:', error);
+    } catch (error: any) {
+      // Use any here since Supabase might return different error types
+      console.error("Error creating user:", error);
       alert(`Failed to create user: ${error.message}`);
     }
   };
@@ -196,25 +221,32 @@ export default function UserManagementPage() {
           onClick={() => setShowAddUserForm(!showAddUserForm)}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
         >
-          {showAddUserForm ? 'Cancel' : 'Add User'}
+          {showAddUserForm ? "Cancel" : "Add User"}
         </button>
       </div>
 
       {/* Admin dropdown for multiple admin features */}
       {user?.isAdmin && (
         <div className="relative">
-          <button 
+          <button
             onClick={() => setAdminMenuOpen(!adminMenuOpen)}
             className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md"
           >
             <Settings className="w-5 h-5 mr-3" />
             Admin
-            <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${adminMenuOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              className={`w-4 h-4 ml-2 transition-transform ${
+                adminMenuOpen ? "rotate-180" : ""
+              }`}
+            />
           </button>
-          
+
           {adminMenuOpen && (
             <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-              <Link href="/admin/users" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+              <Link
+                href="/admin/users"
+                className="block px-4 py-2 text-gray-700 hover:bg-gray-100"
+              >
                 <UsersRound className="w-4 h-4 inline mr-2" />
                 User Management
               </Link>
@@ -237,7 +269,9 @@ export default function UserManagementPage() {
                   type="email"
                   required
                   value={newUser.email}
-                  onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                  onChange={(e) =>
+                    setNewUser({ ...newUser, email: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
@@ -249,7 +283,9 @@ export default function UserManagementPage() {
                   type="password"
                   required
                   value={newUser.password}
-                  onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                  onChange={(e) =>
+                    setNewUser({ ...newUser, password: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
@@ -260,7 +296,9 @@ export default function UserManagementPage() {
                 <input
                   type="text"
                   value={newUser.full_name}
-                  onChange={(e) => setNewUser({...newUser, full_name: e.target.value})}
+                  onChange={(e) =>
+                    setNewUser({ ...newUser, full_name: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
@@ -269,7 +307,7 @@ export default function UserManagementPage() {
                   Roles
                 </label>
                 <div className="space-y-2">
-                  {roleOptions.map(role => (
+                  {roleOptions.map((role) => (
                     <div key={role} className="flex items-center">
                       <input
                         type="checkbox"
@@ -278,19 +316,22 @@ export default function UserManagementPage() {
                         onChange={() => {
                           if (newUser.roles.includes(role)) {
                             setNewUser({
-                              ...newUser, 
-                              roles: newUser.roles.filter(r => r !== role)
+                              ...newUser,
+                              roles: newUser.roles.filter((r) => r !== role),
                             });
                           } else {
                             setNewUser({
                               ...newUser,
-                              roles: [...newUser.roles, role]
+                              roles: [...newUser.roles, role],
                             });
                           }
                         }}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
-                      <label htmlFor={`role-${role}`} className="ml-2 text-sm text-gray-700">
+                      <label
+                        htmlFor={`role-${role}`}
+                        className="ml-2 text-sm text-gray-700"
+                      >
                         {role}
                       </label>
                     </div>
@@ -381,12 +422,21 @@ export default function UserManagementPage() {
                         type="checkbox"
                         checked={user.roles.includes(role)}
                         onChange={() => handleRoleToggle(user.id, role)}
-                        disabled={role === 'admin' && isOriginalAdmin(user.id) && user.roles.includes('admin')}
+                        disabled={
+                          role === "admin" &&
+                          isOriginalAdmin(user.id) &&
+                          user.roles.includes("admin")
+                        }
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        aria-label={`Toggle ${role} role for ${user.full_name || user.email}`}
                       />
-                      {role === 'admin' && isOriginalAdmin(user.id) && user.roles.includes('admin') && (
-                        <span className="ml-2 text-xs text-gray-500">(Owner)</span>
-                      )}
+                      {role === "admin" &&
+                        isOriginalAdmin(user.id) &&
+                        user.roles.includes("admin") && (
+                          <span className="ml-2 text-xs text-gray-500">
+                            (Owner)
+                          </span>
+                        )}
                     </td>
                   ))}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -397,16 +447,16 @@ export default function UserManagementPage() {
                           // For development, you can add a workaround
                           try {
                             // In production, use admin API to confirm user
-                            await fetch('/api/admin/confirm-user', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ userId: user.id })
+                            await fetch("/api/admin/confirm-user", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ userId: user.id }),
                             });
-                            alert('User confirmed successfully');
+                            alert("User confirmed successfully");
                             fetchUsers();
                           } catch (error) {
-                            console.error('Error confirming user:', error);
-                            alert('Error confirming user');
+                            console.error("Error confirming user:", error);
+                            alert("Error confirming user");
                           }
                         }}
                         className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full"
