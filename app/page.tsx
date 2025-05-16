@@ -1,45 +1,33 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import Link from "next/link";
 
-export default function Home() {
+export default function HomePage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-24">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        <p className="mt-4">Loading...</p>
-      </div>
-    );
-  }
+  useEffect(() => {
+    // If auth is loaded and user exists, redirect to dashboard
+    if (!loading && user) {
+      router.push("/dashboard");
+    }
+    
+    // If auth is loaded and no user, redirect to auth page
+    if (!loading && !user) {
+      router.push("/auth");
+    }
+  }, [user, loading, router]);
 
+  // Show a loading state while redirecting
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <h1 className="text-4xl font-bold">Welcome to Stia</h1>
-      
-      {user ? (
-        <div className="mt-8">
-          <p className="mb-4">Logged in as: {user.email}</p>
-          <Link 
-            href="/calendar" 
-            className="px-4 py-2 bg-blue-600 text-white rounded-md"
-          >
-            Go to Calendar
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-8">
-          <p className="mb-4">Please sign in to access the application</p>
-          <Link 
-            href="/auth" 
-            className="px-4 py-2 bg-blue-600 text-white rounded-md"
-          >
-            Sign In
-          </Link>
-        </div>
-      )}
-    </main>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold mb-4">Welcome to Stia</h1>
+        <p className="text-gray-600 mb-6">Redirecting you to the right place...</p>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+      </div>
+    </div>
   );
 }

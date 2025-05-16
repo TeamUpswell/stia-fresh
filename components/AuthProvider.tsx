@@ -20,9 +20,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Add this failsafe
     const timeoutId = setTimeout(() => {
+      console.warn("⚠️ Auth check timed out - forcing loading to false");
       setLoading(false);
-      console.log("⚠️ Auth check timed out - forcing loading to false");
-    }, 3000);
+    }, 10000); // Increase from 3 seconds to 10 seconds
 
     // Initial session check with proper error handling
     supabase.auth.getSession()
@@ -36,7 +36,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .select('role')
             .eq('user_id', session.user.id);
             
-          const roles = roleError ? [] : roleData.map(r => r.role);
+          let roles = roleError ? [] : roleData.map(r => r.role);
+          
+          // Add this section - if no roles, check if first user and add admin
+          if (roles.length === 0) {
+            console.log("No roles detected, checking if first user...");
+            // Check if this is the first user (no other roles exist)
+            const { count } = await supabase
+              .from("user_roles")
+              .select("*", { count: "exact" });
+              
+            if (count === 0) {
+              console.log("First user detected, assigning admin roles");
+              // Add admin roles for first user
+              await supabase.from("user_roles").insert([
+                { user_id: session.user.id, role: "admin" },
+                { user_id: session.user.id, role: "family" },
+                { user_id: session.user.id, role: "manager" }
+              ]);
+              
+              // Update roles array
+              roles = ["admin", "family", "manager"];
+            }
+          }
 
           // Set user with roles
           setUser({
@@ -67,7 +89,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .select('role')
           .eq('user_id', session.user.id);
           
-        const roles = roleError ? [] : roleData.map(r => r.role);
+        let roles = roleError ? [] : roleData.map(r => r.role);
+        
+        // Add this section - if no roles, check if first user and add admin
+        if (roles.length === 0) {
+          console.log("No roles detected, checking if first user...");
+          // Check if this is the first user (no other roles exist)
+          const { count } = await supabase
+            .from("user_roles")
+            .select("*", { count: "exact" });
+            
+          if (count === 0) {
+            console.log("First user detected, assigning admin roles");
+            // Add admin roles for first user
+            await supabase.from("user_roles").insert([
+              { user_id: session.user.id, role: "admin" },
+              { user_id: session.user.id, role: "family" },
+              { user_id: session.user.id, role: "manager" }
+            ]);
+            
+            // Update roles array
+            roles = ["admin", "family", "manager"];
+          }
+        }
 
         // Set user with roles
         setUser({

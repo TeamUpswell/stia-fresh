@@ -47,45 +47,36 @@ export default function AuthPage() {
         if (error) {
           setError(error.message);
         } else {
-          // Check if this is the first user
-          const { count, error: countError } = await supabase
-            .from("profiles")
-            .select("*", { count: "exact", head: true });
-
-          const isFirstUser = !countError && count === 0;
-
-          if (isFirstUser) {
-            // This is the first user - make them an admin
-            const userId = data.user.id;
-
-            // Create admin role
-            await supabase.from("user_roles").insert({
-              user_id: userId,
-              role: "admin",
-              created_at: new Date().toISOString(),
-            });
-
-            // Also add other useful roles
-            await supabase.from("user_roles").insert([
-              {
-                user_id: userId,
-                role: "family",
-                created_at: new Date().toISOString(),
-              },
-              {
-                user_id: userId,
-                role: "manager",
-                created_at: new Date().toISOString(),
-              },
-            ]);
-
-            setMessage(
-              "Account created with admin privileges! Please check your email to verify your account."
-            );
-          } else {
-            setMessage(
-              "Account created! Please check your email to verify your account."
-            );
+          // After successful signup
+          if (data?.user?.id) {
+            try {
+              // Check if this is the first user (more reliable)
+              const { count, error: countError } = await supabase
+                .from("user_roles")
+                .select("*", { count: "exact" });
+                
+              const isFirstUser = !countError && count === 0;
+              
+              // Assign appropriate roles
+              if (isFirstUser) {
+                // First user gets all admin privileges
+                await supabase.from("user_roles").insert([
+                  { user_id: data.user.id, role: "admin" },
+                  { user_id: data.user.id, role: "family" },
+                  { user_id: data.user.id, role: "manager" }
+                ]);
+                setMessage("Account created with admin privileges!");
+              } else {
+                // Regular users just get guest role
+                await supabase.from("user_roles").insert({
+                  user_id: data.user.id,
+                  role: "guest"
+                });
+                setMessage("Account created successfully!");
+              }
+            } catch (err) {
+              console.error("Error assigning user roles:", err);
+            }
           }
         }
       }
