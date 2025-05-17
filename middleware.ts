@@ -2,6 +2,26 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+const PUBLIC_ROUTES = [
+  '/auth', 
+  '/api/public', 
+  '/',              // Make homepage public
+  '/auth/callback', 
+  '/auth/debug',    
+  '/_next',        
+  '/favicon.ico',
+  '/appspecific'
+];
+
+const PROTECTED_ROUTES = [
+  '/dashboard', 
+  '/calendar', 
+  '/tasks', 
+  '/inventory', 
+  '/manual',
+  '/admin'  // Add this line to protect all admin routes
+];
+
 export async function middleware(req: NextRequest) {
   console.log("🔍 Middleware running on:", req.nextUrl.pathname);
   
@@ -11,27 +31,21 @@ export async function middleware(req: NextRequest) {
   // Set a timeout for the session check
   const sessionPromise = Promise.race([
     supabase.auth.getSession(),
-    new Promise((_, reject) => 
+    new Promise<{data: {session: null}}>((_, reject) => 
       setTimeout(() => reject(new Error('Session check timeout')), 2000)
     )
   ]);
 
   try {
     // Use the timeout-protected session check
-    const { data: { session } } = await sessionPromise as any;
-    console.log("🔑 Session check result:", !!session);
+    const { data: { session } } = await sessionPromise;
+    // Only log in development
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("🔑 Session check result:", !!session);
+    }
     
     // Define public routes that don't require authentication
-    const publicRoutes = [
-      '/auth', 
-      '/api/public', 
-      '/',              // Make homepage public
-      '/auth/callback', 
-      '/auth/debug',    
-      '/_next',        
-      '/favicon.ico',
-      '/appspecific'    // Ignore Chrome DevTools paths
-    ];
+    const publicRoutes = PUBLIC_ROUTES;
     const isPublicRoute = publicRoutes.some(route => {
       // Special case for root path or empty path
       if ((route === '/' && (req.nextUrl.pathname === '/' || req.nextUrl.pathname === '')) || 
@@ -43,13 +57,7 @@ export async function middleware(req: NextRequest) {
     });
 
     // Define routes that require authentication
-    const protectedPaths = [
-      '/dashboard', 
-      '/calendar', 
-      '/tasks', 
-      '/inventory', 
-      '/manual'
-    ];
+    const protectedPaths = PROTECTED_ROUTES;
     const isProtectedRoute = protectedPaths.some(path => {
       // Make sure empty paths are never protected
       if (req.nextUrl.pathname === '' || req.nextUrl.pathname === '/') {
@@ -57,6 +65,12 @@ export async function middleware(req: NextRequest) {
       }
       return req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith(path + '/');
     });
+
+    // Add special case for manual pages
+    if (session && req.nextUrl.pathname.startsWith('/manual')) {
+      // Allow any authenticated user to access manual pages
+      return res;
+    }
 
     // Redirect logic
     if (!session && isProtectedRoute && !isPublicRoute) {
@@ -75,7 +89,14 @@ export async function middleware(req: NextRequest) {
     }
   } catch (error) {
     console.error("❌ Session check failed:", error);
-    // Allow the request to proceed rather than getting stuck
+    
+    // For protected routes, redirect to auth on error
+    if (isProtectedRoute && !isPublicRoute) {
+      const redirectUrl = new URL('/auth', req.url);
+      return NextResponse.redirect(redirectUrl);
+    }
+    
+    // For public routes, allow access
     return res;
   }
 

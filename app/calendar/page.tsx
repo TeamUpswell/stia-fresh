@@ -2,25 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
-import format from "date-fns/format";
-import parse from "date-fns/parse";
-import startOfWeek from "date-fns/startOfWeek";
-import getDay from "date-fns/getDay";
-import Link from "next/link";
+import { format, parse, startOfWeek, getDay } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
+import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import styles from "./calendar.module.css";
-import {
-  Calendar as CalendarIcon,
-  BarChart3,
-  CheckCircle,
-  PlusCircle,
-  User,
-  Settings,
-  LogOut,
-  Users,
-  Inbox,
-} from "lucide-react";
+import { PlusCircle } from "lucide-react";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -51,7 +38,7 @@ interface Reservation {
 }
 
 // Status colors for visual representation
-const statusColors = {
+const statusColors: Record<string, string> = {
   confirmed: "#10B981", // green
   pending: "#F59E0B", // amber
   cancelled: "#EF4444", // red
@@ -62,7 +49,6 @@ export default function ReservationCalendar() {
   const { user, loading } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [selectedReservation, setSelectedReservation] =
     useState<Reservation | null>(null);
@@ -105,7 +91,7 @@ export default function ReservationCalendar() {
           guests: reservation.guests || 1,
           status: reservation.status || "pending",
           allDay: true, // House bookings are typically full days
-          color: statusColors[reservation.status] || statusColors.default,
+          color: statusColors[reservation.status as keyof typeof statusColors] || statusColors.default,
         }));
 
         setReservations(calendarReservations);
@@ -219,121 +205,64 @@ export default function ReservationCalendar() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="hidden md:flex flex-col w-64 bg-white border-r">
-        <div className="flex items-center justify-center h-16 border-b">
-          <h1 className="text-xl font-semibold text-gray-800">Stia</h1>
-        </div>
+    <AuthenticatedLayout>
+      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+        <header className="mb-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-900">
+              House Reservations
+            </h1>
+            <button
+              onClick={() =>
+                handleSlotSelect({
+                  start: new Date(),
+                  end: new Date(new Date().setDate(new Date().getDate() + 1)),
+                })
+              }
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center"
+            >
+              <PlusCircle className="w-4 h-4 mr-2" />
+              New Reservation
+            </button>
+          </div>
 
-        <div className="flex flex-col flex-1 p-4 space-y-2">
-          <Link
-            href="/dashboard"
-            className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md"
-          >
-            <BarChart3 className="w-5 h-5 mr-3" />
-            Dashboard
-          </Link>
-          <Link
-            href="/tasks"
-            className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md"
-          >
-            <CheckCircle className="w-5 h-5 mr-3" />
-            Tasks
-          </Link>
-          <Link
-            href="/calendar"
-            className="flex items-center px-4 py-3 text-gray-900 bg-blue-50 rounded-md font-medium"
-          >
-            <CalendarIcon className="w-5 h-5 mr-3" />
-            Reservations
-          </Link>
-          <Link
-            href="/inventory"
-            className="flex items-center px-4 py-3 text-gray-600 hover:bg-gray-100 rounded-md"
-          >
-            <Inbox className="w-5 h-5 mr-3" />
-            Inventory
-          </Link>
-        </div>
-
-        {/* User section - same as before */}
-        <div className="p-4 border-t">
-          {/* Same user section code from before */}
-        </div>
-      </div>
-
-      {/* Mobile Nav - same as before */}
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="md:p-8 p-4 pt-20 md:pt-8 max-w-7xl mx-auto">
-          <header className="mb-6">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">
-                House Reservations
-              </h1>
-              <button
-                onClick={() =>
-                  handleSlotSelect({
-                    start: new Date(),
-                    end: new Date(new Date().setDate(new Date().getDate() + 1)),
-                  })
-                }
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <PlusCircle className="w-4 h-4 mr-2" />
-                New Reservation
-              </button>
+          {/* Status legend */}
+          <div className="mt-4 flex flex-wrap gap-4">
+            <div className="flex items-center">
+              <div className={`${styles.statusIndicator} ${styles.confirmedStatus}`}></div>
+              <span className="text-sm text-gray-600">Confirmed</span>
             </div>
-
-            {/* Status legend */}
-            <div className="mt-4 flex flex-wrap gap-4">
-              <div className="flex items-center">
-                <div
-                  className="w-3 h-3 rounded-full mr-2"
-                  style={{ backgroundColor: statusColors.confirmed }}
-                ></div>
-                <span className="text-sm text-gray-600">Confirmed</span>
-              </div>
-              <div className="flex items-center">
-                <div
-                  className="w-3 h-3 rounded-full mr-2"
-                  style={{ backgroundColor: statusColors.pending }}
-                ></div>
-                <span className="text-sm text-gray-600">Pending</span>
-              </div>
-              <div className="flex items-center">
-                <div
-                  className="w-3 h-3 rounded-full mr-2"
-                  style={{ backgroundColor: statusColors.cancelled }}
-                ></div>
-                <span className="text-sm text-gray-600">Cancelled</span>
-              </div>
+            <div className="flex items-center">
+              <div className={`${styles.statusIndicator} ${styles.pendingStatus}`}></div>
+              <span className="text-sm text-gray-600">Pending</span>
             </div>
-          </header>
-
-          {/* Calendar Component */}
-          <div className={styles.calendarContainer}>
-            <div className={styles.calendarView}>
-              <BigCalendar
-                localizer={localizer}
-                events={reservations}
-                startAccessor="start"
-                endAccessor="end"
-                views={["month", "week", "day"]}
-                onSelectEvent={handleReservationSelect}
-                onSelectSlot={handleSlotSelect}
-                selectable
-                popup
-                eventPropGetter={(event) => ({
-                  style: {
-                    backgroundColor: event.color || statusColors.default,
-                    borderRadius: "4px",
-                  },
-                })}
-              />
+            <div className="flex items-center">
+              <div className={`${styles.statusIndicator} ${styles.cancelledStatus}`}></div>
+              <span className="text-sm text-gray-600">Cancelled</span>
             </div>
+          </div>
+        </header>
+
+        {/* Calendar Component */}
+        <div className={styles.calendarContainer}>
+          <div className={styles.calendarView}>
+            <BigCalendar
+              localizer={localizer}
+              events={reservations}
+              startAccessor="start"
+              endAccessor="end"
+              views={["month", "week", "day"]}
+              onSelectEvent={handleReservationSelect}
+              onSelectSlot={handleSlotSelect}
+              selectable
+              popup
+              eventPropGetter={(event) => ({
+                style: {
+                  backgroundColor: event.color || statusColors.default,
+                  borderRadius: "4px",
+                },
+              })}
+            />
           </div>
         </div>
       </div>
@@ -379,7 +308,7 @@ export default function ReservationCalendar() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Check-in Date
+                    Arrive
                   </label>
                   <input
                     type="date"
@@ -398,12 +327,13 @@ export default function ReservationCalendar() {
                         : setNewReservation({ ...newReservation, start: date });
                     }}
                     className="w-full px-3 py-2 border rounded-md"
+                    aria-label="Arrival date"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Check-out Date
+                    Depart
                   </label>
                   <input
                     type="date"
@@ -422,6 +352,7 @@ export default function ReservationCalendar() {
                         : setNewReservation({ ...newReservation, end: date });
                     }}
                     className="w-full px-3 py-2 border rounded-md"
+                    aria-label="Departure date"
                   />
                 </div>
               </div>
@@ -448,6 +379,7 @@ export default function ReservationCalendar() {
                       : setNewReservation({ ...newReservation, guests });
                   }}
                   className="w-full px-3 py-2 border rounded-md"
+                  aria-label="Number of guests"
                 />
               </div>
 
@@ -474,6 +406,7 @@ export default function ReservationCalendar() {
                       : setNewReservation({ ...newReservation, status });
                   }}
                   className="w-full px-3 py-2 border rounded-md"
+                  aria-label="Reservation status"
                 >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
@@ -540,7 +473,7 @@ export default function ReservationCalendar() {
           </div>
         </div>
       )}
-    </div>
+    </AuthenticatedLayout>
   );
 }
 

@@ -1,12 +1,15 @@
 "use client";
 
-import { useAuth, UserRole } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
+
+type UserRole = "admin" | "family" | "manager" | "guest";
 
 interface PermissionGateProps {
   children: React.ReactNode;
-  requiredRole?: UserRole; // Change string to UserRole
+  requiredRole?: UserRole;
   requiredPermission?: string;
   fallback?: React.ReactNode;
+  customCheck?: () => boolean;
 }
 
 export default function PermissionGate({
@@ -14,17 +17,28 @@ export default function PermissionGate({
   requiredRole,
   requiredPermission,
   fallback = null,
+  customCheck,
 }: PermissionGateProps) {
-  const { hasRole, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
 
-  // Check permissions in order of precedence with null checks
-  const hasAccess =
-    (requiredPermission &&
-      typeof hasPermission === "function" &&
-      hasPermission(requiredPermission)) ||
-    (requiredRole && typeof hasRole === "function" && hasRole(requiredRole));
+  // Check if we should use the custom check
+  let hasAccess = false;
 
-  if (!hasAccess) return fallback;
+  if (typeof customCheck === "function") {
+    console.log("Using custom permission check for:", requiredRole);
+    hasAccess = customCheck();
+    console.log("Custom check result:", hasAccess);
+  } else {
+    // Check permissions in order of precedence with null checks
+    hasAccess =
+      (requiredPermission &&
+        typeof hasPermission === "function" &&
+        hasPermission(requiredPermission)) ||
+      (requiredRole &&
+        typeof hasPermission === "function" &&
+        hasPermission(requiredRole));
+  }
 
-  return <>{children}</>;
+  // Based on access, render children or fallback
+  return hasAccess ? <>{children}</> : <>{fallback}</>;
 }

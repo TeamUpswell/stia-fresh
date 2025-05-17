@@ -1,148 +1,127 @@
 "use client";
 
-import { createContext, useState, useEffect, useContext, ReactNode } from "react";
+import {
+  createContext,
+  useState,
+  useEffect,
+  useContext,
+  ReactNode,
+} from "react";
 import { supabase } from "@/lib/supabase";
 
-const AuthContext = createContext<any>(null);
+// Update the AppUser type definition to make email optional
+type AppUser = {
+  id: string;
+  email?: string; // Make email optional to match Supabase's type
+  roles: string[];
+  isAdmin: boolean;
+  isFamily: boolean;
+  isManager: boolean;
+} | null;
 
-// If you added a bypass here, make sure to remove it or set to false
-const BYPASS_AUTH = false;
+// Type for the context value
+type AuthContextType = {
+  user: AppUser;
+  loading: boolean;
+  error: any;
+  hasPermission: (role: string) => boolean;
+  hasAnyPermission: (roles: string[]) => boolean;
+  login: (email: string, password: string) => Promise<any>;
+  logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Make sure you're not using mock data here
-  const [user, setUser] = useState(null);
+  // Updated useState with proper type
+  const [user, setUser] = useState<AppUser>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  // Ensure this code runs (not bypassed)
+  const [error, setError] = useState<any>(null);
+
   useEffect(() => {
     console.log("🔑 Auth Provider initialized");
-    
-    // Add this failsafe
+    let isSubscribed = true;
+
+    // Increase timeout to 20 seconds
     const timeoutId = setTimeout(() => {
       console.warn("⚠️ Auth check timed out - forcing loading to false");
-      setLoading(false);
-    }, 10000); // Increase from 3 seconds to 10 seconds
-
-    // Initial session check with proper error handling
-    supabase.auth.getSession()
-      .then(async ({ data: { session } }) => {
-        console.log("🔑 Session check complete:", !!session);
-        
-        if (session?.user) {
-          // Fetch the user's roles from the database
-          const { data: roleData, error: roleError } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', session.user.id);
-            
-          let roles = roleError ? [] : roleData.map(r => r.role);
-          
-          // Add this section - if no roles, check if first user and add admin
-          if (roles.length === 0) {
-            console.log("No roles detected, checking if first user...");
-            // Check if this is the first user (no other roles exist)
-            const { count } = await supabase
-              .from("user_roles")
-              .select("*", { count: "exact" });
-              
-            if (count === 0) {
-              console.log("First user detected, assigning admin roles");
-              // Add admin roles for first user
-              await supabase.from("user_roles").insert([
-                { user_id: session.user.id, role: "admin" },
-                { user_id: session.user.id, role: "family" },
-                { user_id: session.user.id, role: "manager" }
-              ]);
-              
-              // Update roles array
-              roles = ["admin", "family", "manager"];
-            }
-          }
-
-          // Set user with roles
-          setUser({
-            ...session.user,
-            roles: roles,
-            isAdmin: roles.includes('admin'),
-            isFamily: roles.includes('family'),
-            isManager: roles.includes('manager')
-          });
-        } else {
-          setUser(null);
-        }
-        
+      if (isSubscribed) {
         setLoading(false);
-      })
-      .catch(error => {
-        console.error("❌ Session check error:", error);
-        setError(error);
-        setLoading(false); // Important: still set loading to false on error
-      });
-
-    // Watch for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        // Fetch the user's roles from the database
-        const { data: roleData, error: roleError } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id);
-          
-        let roles = roleError ? [] : roleData.map(r => r.role);
-        
-        // Add this section - if no roles, check if first user and add admin
-        if (roles.length === 0) {
-          console.log("No roles detected, checking if first user...");
-          // Check if this is the first user (no other roles exist)
-          const { count } = await supabase
-            .from("user_roles")
-            .select("*", { count: "exact" });
-            
-          if (count === 0) {
-            console.log("First user detected, assigning admin roles");
-            // Add admin roles for first user
-            await supabase.from("user_roles").insert([
-              { user_id: session.user.id, role: "admin" },
-              { user_id: session.user.id, role: "family" },
-              { user_id: session.user.id, role: "manager" }
-            ]);
-            
-            // Update roles array
-            roles = ["admin", "family", "manager"];
-          }
-        }
-
-        // Set user with roles
-        setUser({
-          ...session.user,
-          roles: roles,
-          isAdmin: roles.includes('admin'),
-          isFamily: roles.includes('family'),
-          isManager: roles.includes('manager')
-        });
-      } else {
         setUser(null);
       }
-      setLoading(false);
-    });
+    }, 20000); // Increased from 10000
 
+    // Initial session check with proper error handling
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log("🔑 Session check complete:", !!session);
+
+        if (session?.user && isSubscribed) {
+          // Fetch the user's roles from the database
+          const { data: roleData, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", session.user.id);
+
+          const roles = roleError ? [] : roleData?.map(r => r.role) || [];
+          
+          // Set user if component is still mounted
+          if (isSubscribed) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email || '',
+              roles: roles,
+              isAdmin: roles.includes('admin'),
+              isFamily: roles.includes('family'),
+              isManager: roles.includes('manager')
+            });
+            setLoading(false);
+          }
+        } else if (isSubscribed) {
+          setUser(null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("❌ Session check error:", error);
+        if (isSubscribed) {
+          setError(error);
+          setLoading(false);
+          setUser(null);
+        }
+      }
+    };
+
+    // Execute session check
+    checkSession();
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("🔑 Auth state changed:", event);
+        checkSession();
+      }
+    );
+
+    // Cleanup function
     return () => {
-      subscription.unsubscribe();
+      isSubscribed = false;
       clearTimeout(timeoutId);
+      subscription?.unsubscribe();
     };
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email, password
+        email,
+        password,
       });
-      
-      return { 
-        success: !error, 
-        error: error, 
-        message: error ? error.message : "Success" 
+
+      return {
+        success: !error,
+        error: error,
+        message: error ? error.message : "Success",
       };
     } catch (err) {
       return { success: false, error: err as Error };
@@ -155,32 +134,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const userRoles = user?.roles || [];
 
+  const hasPermission = (requiredRole: string) => {
+    if (!user || !userRoles) return false;
+
+    // Check if user has the exact role
+    if (userRoles.includes(requiredRole)) return true;
+
+    // Role hierarchy - owners can access everything
+    if (userRoles.includes("owner")) {
+      return true; // Owners have access to everything
+    }
+
+    // Add more hierarchy rules if needed
+    // e.g., if (userRoles.includes("manager") && (requiredRole === "family" || requiredRole === "guest")) return true;
+
+    return false;
+  };
+
   const value = {
     user,
     loading,
     error,
-    hasPermission: (role: string) => {
-      if (!user) return false;
-      if (role === "any") return true; // Always allow "any" role
-      if (userRoles.includes("admin")) return true; // Admin can do anything
-      return userRoles.includes(role);
-    },
+    hasPermission,
     hasAnyPermission: (roles: string[]) => {
       if (!user) return false;
-      if (userRoles.includes("admin")) return true; // Admin can do anything
-      return roles.some(role => userRoles.includes(role));
+      if (userRoles.includes("admin")) return true;
+      return roles.some((role) => userRoles.includes(role));
     },
     login,
-    logout
+    logout,
   };
-  
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
 };
