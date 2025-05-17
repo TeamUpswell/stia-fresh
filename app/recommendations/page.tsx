@@ -4,9 +4,22 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
-import { Star, MapPin, ExternalLink, Phone, Plus, X, MessageSquare, ThumbsUp, ThumbsDown, Edit, Trash2 } from "lucide-react";
+import {
+  Star,
+  MapPin,
+  ExternalLink,
+  Phone,
+  Plus,
+  X,
+  MessageSquare,
+  ThumbsUp,
+  ThumbsDown,
+  Edit,
+  Trash2,
+} from "lucide-react";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
+import PlaceSearch from "@/components/PlaceSearch";
 
 interface Coordinates {
   lat: number;
@@ -44,7 +57,9 @@ export default function RecommendationsPage() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [recommendationStatus, setRecommendationStatus] = useState<"all" | "recommended" | "not_recommended">("all");
+  const [recommendationStatus, setRecommendationStatus] = useState<
+    "all" | "recommended" | "not_recommended"
+  >("all");
   const [categories, setCategories] = useState<string[]>([]);
   const [notes, setNotes] = useState<Record<string, RecommendationNote[]>>({});
   const [showAddForm, setShowAddForm] = useState(false);
@@ -57,10 +72,11 @@ export default function RecommendationsPage() {
     phone_number: "",
     rating: 5,
     images: [""],
-    is_recommended: true
+    is_recommended: true,
   });
   const [isEditing, setIsEditing] = useState(false);
-  const [editingRecommendation, setEditingRecommendation] = useState<Recommendation | null>(null);
+  const [editingRecommendation, setEditingRecommendation] =
+    useState<Recommendation | null>(null);
   const [newNotes, setNewNotes] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -81,7 +97,7 @@ export default function RecommendationsPage() {
       setRecommendations(data || []);
 
       const uniqueCategories = Array.from(
-        new Set(data?.map(item => item.category) || [])
+        new Set(data?.map((item) => item.category) || [])
       );
 
       setCategories(uniqueCategories);
@@ -99,10 +115,11 @@ export default function RecommendationsPage() {
     if (recommendations.length === 0) return;
 
     try {
-      const recIds = recommendations.map(rec => rec.id);
+      const recIds = recommendations.map((rec) => rec.id);
       const { data: notesData, error: notesError } = await supabase
         .from("recommendation_notes")
-        .select(`
+        .select(
+          `
           id, 
           recommendation_id, 
           user_id, 
@@ -112,13 +129,14 @@ export default function RecommendationsPage() {
             full_name,
             avatar_url
           )
-        `)
+        `
+        )
         .in("recommendation_id", recIds)
         .order("created_at", { ascending: false });
 
       if (!notesError && notesData) {
         const groupedNotes: Record<string, RecommendationNote[]> = {};
-        notesData.forEach(note => {
+        notesData.forEach((note) => {
           if (!groupedNotes[note.recommendation_id]) {
             groupedNotes[note.recommendation_id] = [];
           }
@@ -126,7 +144,7 @@ export default function RecommendationsPage() {
           const formattedNote = {
             ...note,
             user_name: note.profiles?.full_name || "Anonymous User",
-            user_avatar: note.profiles?.avatar_url
+            user_avatar: note.profiles?.avatar_url,
           };
 
           groupedNotes[note.recommendation_id].push(formattedNote);
@@ -139,8 +157,9 @@ export default function RecommendationsPage() {
     }
   };
 
-  const filteredRecommendations = recommendations.filter(rec => {
-    const matchesCategory = activeCategory === "all" || rec.category === activeCategory;
+  const filteredRecommendations = recommendations.filter((rec) => {
+    const matchesCategory =
+      activeCategory === "all" || rec.category === activeCategory;
 
     if (recommendationStatus === "all") {
       return matchesCategory;
@@ -157,10 +176,12 @@ export default function RecommendationsPage() {
     try {
       const { data, error } = await supabase
         .from("recommendations")
-        .insert([{
-          ...newRecommendation,
-          images: newRecommendation.images.filter(img => img.trim() !== "")
-        }])
+        .insert([
+          {
+            ...newRecommendation,
+            images: newRecommendation.images.filter((img) => img.trim() !== ""),
+          },
+        ])
         .select();
 
       if (error) throw error;
@@ -177,7 +198,7 @@ export default function RecommendationsPage() {
         phone_number: "",
         rating: 5,
         images: [""],
-        is_recommended: true
+        is_recommended: true,
       });
 
       fetchRecommendations();
@@ -188,7 +209,11 @@ export default function RecommendationsPage() {
   };
 
   const handleStartEditing = (recommendation: Recommendation) => {
-    if (!hasPermission("owner") && !hasPermission("manager") && !hasPermission("family")) {
+    if (
+      !hasPermission("owner") &&
+      !hasPermission("manager") &&
+      !hasPermission("family")
+    ) {
       toast.error("You don't have permission to edit recommendations");
       return;
     }
@@ -213,7 +238,7 @@ export default function RecommendationsPage() {
           website: editingRecommendation.website,
           phone_number: editingRecommendation.phone_number,
           rating: editingRecommendation.rating,
-          is_recommended: editingRecommendation.is_recommended
+          is_recommended: editingRecommendation.is_recommended,
         })
         .eq("id", editingRecommendation.id);
 
@@ -230,8 +255,15 @@ export default function RecommendationsPage() {
     }
   };
 
-  const toggleRecommendationStatus = async (id: string, currentStatus: boolean | undefined) => {
-    if (!hasPermission("owner") && !hasPermission("manager") && !hasPermission("family")) {
+  const toggleRecommendationStatus = async (
+    id: string,
+    currentStatus: boolean | undefined
+  ) => {
+    if (
+      !hasPermission("owner") &&
+      !hasPermission("manager") &&
+      !hasPermission("family")
+    ) {
       toast.error("You don't have permission to change recommendation status");
       return;
     }
@@ -245,14 +277,53 @@ export default function RecommendationsPage() {
 
       if (error) throw error;
 
-      toast.success(`Marked as ${newStatus ? "Recommended" : "Not Recommended"}`);
+      toast.success(
+        `Marked as ${newStatus ? "Recommended" : "Not Recommended"}`
+      );
 
-      setRecommendations(recommendations.map(rec =>
-        rec.id === id ? { ...rec, is_recommended: newStatus } : rec
-      ));
+      setRecommendations(
+        recommendations.map((rec) =>
+          rec.id === id ? { ...rec, is_recommended: newStatus } : rec
+        )
+      );
     } catch (error) {
       console.error("Error updating recommendation status:", error);
       toast.error("Failed to update status");
+    }
+  };
+
+  const handleDeleteRecommendation = async (id: string) => {
+    if (
+      !hasPermission("owner") &&
+      !hasPermission("manager") &&
+      !hasPermission("family")
+    ) {
+      toast.error("You don't have permission to delete recommendations");
+      return;
+    }
+
+    // Confirm before deleting
+    if (
+      window.confirm(
+        "Are you sure you want to completely delete this recommendation? This action cannot be undone."
+      )
+    ) {
+      try {
+        const { error } = await supabase
+          .from("recommendations")
+          .delete()
+          .eq("id", id);
+
+        if (error) throw error;
+
+        toast.success("Recommendation deleted successfully");
+
+        // Update the local state by filtering out the deleted recommendation
+        setRecommendations(recommendations.filter((rec) => rec.id !== id));
+      } catch (error) {
+        console.error("Error deleting recommendation:", error);
+        toast.error("Failed to delete recommendation");
+      }
     }
   };
 
@@ -269,35 +340,144 @@ export default function RecommendationsPage() {
     }
 
     try {
-      const { data, error } = await supabase
+      // Add the note
+      const { data: newNote, error } = await supabase
         .from("recommendation_notes")
-        .insert([{
-          recommendation_id: recommendationId,
-          user_id: user.id,
-          content: noteContent
-        }])
-        .select();
+        .insert([
+          {
+            recommendation_id: recommendationId,
+            user_id: user.id,
+            content: noteContent,
+          },
+        ]).select(`
+          id, 
+          recommendation_id, 
+          user_id, 
+          content, 
+          created_at,
+          profiles:user_id (
+            full_name,
+            avatar_url
+          )
+        `);
 
       if (error) throw error;
 
-      toast.success("Note added!");
-
+      // Clear the input
       setNewNotes({
         ...newNotes,
-        [recommendationId]: ""
+        [recommendationId]: "",
       });
 
-      const { data: updatedRecs } = await supabase
-        .from("recommendations")
-        .select("*");
+      // Update the notes directly in state
+      if (newNote && newNote.length > 0) {
+        const formattedNote = {
+          ...newNote[0],
+          user_name:
+            newNote[0].profiles?.full_name ||
+            user.user_metadata?.full_name ||
+            "Anonymous User",
+          user_avatar:
+            newNote[0].profiles?.avatar_url || user.user_metadata?.avatar_url,
+        };
 
-      if (updatedRecs) {
-        fetchNotes(updatedRecs);
+        setNotes((prevNotes) => ({
+          ...prevNotes,
+          [recommendationId]: [
+            formattedNote,
+            ...(prevNotes[recommendationId] || []),
+          ],
+        }));
       }
+
+      toast.success("Note added!");
     } catch (error) {
       console.error("Error adding note:", error);
       toast.error("Failed to add note");
     }
+  };
+
+  const handlePlaceSelect = (place: google.maps.places.PlaceResult) => {
+    console.log("Selected place:", place);
+
+    const newRecommendationData = {
+      name: place.name || "",
+      category: place.types?.[0]
+        ? formatPlaceType(place.types[0])
+        : "restaurant",
+      address: place.formatted_address || "",
+      description: place.editorial_summary?.overview || "",
+      website: place.website || "",
+      phone_number: place.formatted_phone_number || "",
+      rating: place.rating || 5,
+      place_id: place.place_id || "",
+      images: place.photos
+        ? place.photos
+            .slice(0, 3)
+            .map((photo) => photo.getUrl({ maxWidth: 800, maxHeight: 600 }))
+        : [""],
+      is_recommended: true,
+    };
+
+    setNewRecommendation(newRecommendationData);
+
+    if (isEditing && editingRecommendation) {
+      setEditingRecommendation({
+        ...editingRecommendation,
+        ...newRecommendationData,
+      });
+    }
+
+    if (place.geometry?.location) {
+      const coordinates = {
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+      };
+
+      if (isEditing && editingRecommendation) {
+        setEditingRecommendation({
+          ...editingRecommendation,
+          coordinates,
+        });
+      } else {
+        setNewRecommendation((prev) => ({
+          ...prev,
+          coordinates,
+        }));
+      }
+    }
+  };
+
+  const formatPlaceType = (type: string): string => {
+    const typeMap: Record<string, string> = {
+      restaurant: "restaurant",
+      cafe: "restaurant",
+      bar: "restaurant",
+      food: "restaurant",
+      bakery: "restaurant",
+      store: "shopping",
+      shopping_mall: "shopping",
+      clothing_store: "shopping",
+      museum: "attraction",
+      park: "attraction",
+      tourist_attraction: "attraction",
+      amusement_park: "attraction",
+      art_gallery: "attraction",
+      movie_theater: "entertainment",
+      night_club: "entertainment",
+      lodging: "lodging",
+      campground: "lodging",
+      rv_park: "lodging",
+      doctor: "services",
+      hospital: "services",
+      pharmacy: "services",
+      gas_station: "services",
+      car_repair: "services",
+      gym: "fitness",
+      spa: "fitness",
+    };
+
+    return typeMap[type] || "other";
   };
 
   const renderRating = (rating: number) => {
@@ -307,9 +487,16 @@ export default function RecommendationsPage() {
 
     for (let i = 1; i <= 5; i++) {
       if (i <= fullStars) {
-        stars.push(<Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />);
+        stars.push(
+          <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+        );
       } else if (i === fullStars + 1 && hasHalfStar) {
-        stars.push(<Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400 half-filled" />);
+        stars.push(
+          <Star
+            key={i}
+            className="h-4 w-4 fill-yellow-400 text-yellow-400 half-filled"
+          />
+        );
       } else {
         stars.push(<Star key={i} className="h-4 w-4 text-gray-300" />);
       }
@@ -349,26 +536,56 @@ export default function RecommendationsPage() {
 
           {showAddForm && (
             <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-              <h2 className="text-xl font-semibold mb-4">Add New Recommendation</h2>
+              <h2 className="text-xl font-semibold mb-4">
+                Add New Recommendation
+              </h2>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Search for a place
+                </label>
+                <PlaceSearch
+                  onPlaceSelect={handlePlaceSelect}
+                  placeholder="Search for restaurants, attractions, etc."
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  Search for a place to automatically fill the details below
+                </p>
+              </div>
+
               <form onSubmit={handleAddRecommendation} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Name *
+                    </label>
                     <input
                       type="text"
                       value={newRecommendation.name}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, name: e.target.value})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          name: e.target.value,
+                        })
+                      }
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Category *
+                    </label>
                     <input
                       type="text"
                       value={newRecommendation.category}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, category: e.target.value})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          category: e.target.value,
+                        })
+                      }
                       required
                       placeholder="restaurants, activities, shopping, etc."
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
@@ -376,60 +593,97 @@ export default function RecommendationsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Address
+                    </label>
                     <input
                       type="text"
                       value={newRecommendation.address}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, address: e.target.value})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          address: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Website
+                    </label>
                     <input
                       type="url"
                       value={newRecommendation.website}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, website: e.target.value})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          website: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone Number
+                    </label>
                     <input
                       type="text"
                       value={newRecommendation.phone_number}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, phone_number: e.target.value})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          phone_number: e.target.value,
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Rating (1-5)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Rating (1-5)
+                    </label>
                     <input
                       type="number"
                       min="1"
                       max="5"
                       step="0.1"
                       value={newRecommendation.rating}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, rating: parseFloat(e.target.value)})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          rating: parseFloat(e.target.value),
+                        })
+                      }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
                     <textarea
                       value={newRecommendation.description}
-                      onChange={(e) => setNewRecommendation({...newRecommendation, description: e.target.value})}
+                      onChange={(e) =>
+                        setNewRecommendation({
+                          ...newRecommendation,
+                          description: e.target.value,
+                        })
+                      }
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     ></textarea>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Image URL
+                    </label>
                     {newRecommendation.images.map((image, index) => (
                       <div key={index} className="flex mb-2">
                         <input
@@ -438,7 +692,10 @@ export default function RecommendationsPage() {
                           onChange={(e) => {
                             const newImages = [...newRecommendation.images];
                             newImages[index] = e.target.value;
-                            setNewRecommendation({...newRecommendation, images: newImages});
+                            setNewRecommendation({
+                              ...newRecommendation,
+                              images: newImages,
+                            });
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                           placeholder="https://example.com/image.jpg"
@@ -446,11 +703,14 @@ export default function RecommendationsPage() {
                         {index === newRecommendation.images.length - 1 ? (
                           <button
                             type="button"
-                            onClick={() => setNewRecommendation({
-                              ...newRecommendation, 
-                              images: [...newRecommendation.images, ""]
-                            })}
+                            onClick={() =>
+                              setNewRecommendation({
+                                ...newRecommendation,
+                                images: [...newRecommendation.images, ""],
+                              })
+                            }
                             className="ml-2 px-3 py-2 bg-blue-100 text-blue-600 rounded"
+                            aria-label="Add another image URL field"
                           >
                             +
                           </button>
@@ -458,10 +718,16 @@ export default function RecommendationsPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              const newImages = newRecommendation.images.filter((_, i) => i !== index);
-                              setNewRecommendation({...newRecommendation, images: newImages});
+                              const newImages = newRecommendation.images.filter(
+                                (_, i) => i !== index
+                              );
+                              setNewRecommendation({
+                                ...newRecommendation,
+                                images: newImages,
+                              });
                             }}
                             className="ml-2 px-3 py-2 bg-red-100 text-red-600 rounded"
+                            aria-label="Remove this image URL field"
                           >
                             -
                           </button>
@@ -489,7 +755,7 @@ export default function RecommendationsPage() {
                 <div className="p-6">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold">Edit Recommendation</h2>
-                    <button 
+                    <button
                       onClick={() => {
                         setIsEditing(false);
                         setEditingRecommendation(null);
@@ -499,119 +765,203 @@ export default function RecommendationsPage() {
                       <X size={24} />
                     </button>
                   </div>
-                  
+
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Update with a new place
+                    </label>
+                    <PlaceSearch
+                      onPlaceSelect={handlePlaceSelect}
+                      placeholder="Search for a new place"
+                    />
+                  </div>
+
                   <form onSubmit={handleSaveEdit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Name *
+                        </label>
                         <input
                           type="text"
                           value={editingRecommendation.name}
-                          onChange={(e) => setEditingRecommendation({...editingRecommendation, name: e.target.value})}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              name: e.target.value,
+                            })
+                          }
                           required
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Category *
+                        </label>
                         <input
                           type="text"
                           value={editingRecommendation.category}
-                          onChange={(e) => setEditingRecommendation({...editingRecommendation, category: e.target.value})}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              category: e.target.value,
+                            })
+                          }
                           required
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Description
+                        </label>
                         <textarea
                           value={editingRecommendation.description || ""}
-                          onChange={(e) => setEditingRecommendation({...editingRecommendation, description: e.target.value})}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              description: e.target.value,
+                            })
+                          }
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         ></textarea>
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Address
+                        </label>
                         <input
                           type="text"
                           value={editingRecommendation.address || ""}
-                          onChange={(e) => setEditingRecommendation({...editingRecommendation, address: e.target.value})}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              address: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Website
+                        </label>
                         <input
                           type="url"
                           value={editingRecommendation.website || ""}
-                          onChange={(e) => setEditingRecommendation({...editingRecommendation, website: e.target.value})}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              website: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone Number
+                        </label>
                         <input
                           type="text"
                           value={editingRecommendation.phone_number || ""}
-                          onChange={(e) => setEditingRecommendation({...editingRecommendation, phone_number: e.target.value})}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              phone_number: e.target.value,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Rating (1-5)</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Rating (1-5)
+                        </label>
                         <input
                           type="number"
                           min="1"
                           max="5"
                           step="0.1"
                           value={editingRecommendation.rating || 5}
-                          onChange={(e) => setEditingRecommendation({
-                            ...editingRecommendation, 
-                            rating: parseFloat(e.target.value) || 5
-                          })}
+                          onChange={(e) =>
+                            setEditingRecommendation({
+                              ...editingRecommendation,
+                              rating: parseFloat(e.target.value) || 5,
+                            })
+                          }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                         />
                       </div>
-                      
+
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-3">Recommendation Status</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-3">
+                          Recommendation Status
+                        </label>
                         <div className="flex gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={editingRecommendation.is_recommended !== false}
-                              onChange={() => setEditingRecommendation({...editingRecommendation, is_recommended: true})}
-                              className="h-4 w-4 text-blue-600"
+                          <input
+                            type="radio"
+                            id="recommended-true"
+                            checked={
+                              editingRecommendation.is_recommended !== false
+                            }
+                            onChange={() =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                is_recommended: true,
+                              })
+                            }
+                            className="h-4 w-4 text-blue-600"
+                            aria-label="Mark as recommended"
+                          />
+                          <label
+                            htmlFor="recommended-true"
+                            className="flex items-center gap-1"
+                          >
+                            <ThumbsUp
+                              size={16}
+                              className="text-green-500"
                             />
-                            <span className="flex items-center gap-1">
-                              <ThumbsUp size={16} className="text-green-500" />
-                              Recommended
-                            </span>
+                            Recommended
                           </label>
-                          
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={editingRecommendation.is_recommended === false}
-                              onChange={() => setEditingRecommendation({...editingRecommendation, is_recommended: false})}
-                              className="h-4 w-4 text-blue-600"
+
+                          <input
+                            type="radio"
+                            id="recommended-false"
+                            checked={
+                              editingRecommendation.is_recommended === false
+                            }
+                            onChange={() =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                is_recommended: false,
+                              })
+                            }
+                            className="h-4 w-4 text-blue-600"
+                            aria-label="Mark as not recommended"
+                          />
+                          <label
+                            htmlFor="recommended-false"
+                            className="flex items-center gap-1"
+                          >
+                            <ThumbsDown
+                              size={16}
+                              className="text-red-500"
                             />
-                            <span className="flex items-center gap-1">
-                              <ThumbsDown size={16} className="text-red-500" />
-                              Not Recommended
-                            </span>
+                            Not Recommended
                           </label>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex justify-end pt-4">
                       <button
                         type="button"
@@ -636,74 +986,85 @@ export default function RecommendationsPage() {
             </div>
           )}
 
-          <div className="mb-8 space-y-4">
+          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <h3 className="text-sm font-medium mb-2">Filter by Category:</h3>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setActiveCategory("all")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
-                    activeCategory === "all"
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  }`}
+              <label
+                htmlFor="category-filter"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Filter by Category
+              </label>
+              <div className="relative">
+                <select
+                  id="category-filter"
+                  value={activeCategory}
+                  onChange={(e) => setActiveCategory(e.target.value)}
+                  className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  All Categories
-                </button>
-
-                {categories.map(category => (
-                  <button
-                    key={category}
-                    onClick={() => setActiveCategory(category)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium capitalize ${
-                      activeCategory === category
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                    }`}
+                  <option value="all">All Categories</option>
+                  {categories.map((category) => (
+                    <option
+                      key={category}
+                      value={category}
+                      className="capitalize"
+                    >
+                      {category}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <svg
+                    className="h-5 w-5 text-gray-400"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
                   >
-                    {category}
-                  </button>
-                ))}
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-medium mb-2">Filter by Status:</h3>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setRecommendationStatus("all")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium ${
-                    recommendationStatus === "all"
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  }`}
+              <label
+                htmlFor="status-filter"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Filter by Status
+              </label>
+              <div className="relative">
+                <select
+                  id="status-filter"
+                  value={recommendationStatus}
+                  onChange={(e) =>
+                    setRecommendationStatus(
+                      e.target.value as "all" | "recommended" | "not_recommended"
+                    )
+                  }
+                  className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  All Places
-                </button>
-
-                <button
-                  onClick={() => setRecommendationStatus("recommended")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1 ${
-                    recommendationStatus === "recommended"
-                      ? "bg-green-500 text-white"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  <ThumbsUp size={14} />
-                  Recommended
-                </button>
-
-                <button
-                  onClick={() => setRecommendationStatus("not_recommended")}
-                  className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-1 ${
-                    recommendationStatus === "not_recommended"
-                      ? "bg-red-500 text-white"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  <ThumbsDown size={14} />
-                  Not Recommended
-                </button>
+                  <option value="all">All Places</option>
+                  <option value="recommended">Recommended Only</option>
+                  <option value="not_recommended">Not Recommended Only</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <svg
+                    className="h-5 w-5 text-gray-400"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </div>
               </div>
             </div>
           </div>
@@ -715,11 +1076,13 @@ export default function RecommendationsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRecommendations.length > 0 ? (
-                filteredRecommendations.map(item => (
-                  <div 
-                    key={item.id} 
+                filteredRecommendations.map((item) => (
+                  <div
+                    key={item.id}
                     className={`bg-white rounded-lg shadow-md overflow-hidden relative ${
-                      item.is_recommended === false ? 'border-2 border-red-300' : ''
+                      item.is_recommended === false
+                        ? "border-2 border-red-300"
+                        : ""
                     }`}
                   >
                     {item.is_recommended === false && (
@@ -729,7 +1092,50 @@ export default function RecommendationsPage() {
                       </div>
                     )}
 
-                    {(hasPermission("owner") || hasPermission("manager") || hasPermission("family")) && (
+                    {(hasPermission("owner") ||
+                      hasPermission("manager") ||
+                      hasPermission("family")) && (
+                      <button
+                        onClick={() => handleDeleteRecommendation(item.id)}
+                        className="absolute top-2 right-12 bg-red-500/90 hover:bg-red-600 text-white p-1.5 rounded-full z-10"
+                        aria-label="Delete recommendation"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+
+                    {(hasPermission("owner") ||
+                      hasPermission("manager") ||
+                      hasPermission("family")) && (
+                      <button
+                        onClick={() =>
+                          toggleRecommendationStatus(
+                            item.id,
+                            item.is_recommended
+                          )
+                        }
+                        className={`absolute top-2 right-24 p-1.5 rounded-full z-10 ${
+                          item.is_recommended !== false
+                            ? "bg-red-500/90 hover:bg-red-600 text-white"
+                            : "bg-green-500/90 hover:bg-green-600 text-white"
+                        }`}
+                        aria-label={
+                          item.is_recommended !== false
+                            ? "Mark as not recommended"
+                            : "Mark as recommended"
+                        }
+                      >
+                        {item.is_recommended !== false ? (
+                          <ThumbsDown size={16} />
+                        ) : (
+                          <ThumbsUp size={16} />
+                        )}
+                      </button>
+                    )}
+
+                    {(hasPermission("owner") ||
+                      hasPermission("manager") ||
+                      hasPermission("family")) && (
                       <button
                         onClick={() => handleStartEditing(item)}
                         className="absolute top-2 right-2 bg-white/90 hover:bg-white text-gray-700 p-1.5 rounded-full z-10"
@@ -739,22 +1145,12 @@ export default function RecommendationsPage() {
                       </button>
                     )}
 
-                    {(hasPermission("owner") || hasPermission("manager") || hasPermission("family")) && (
-                      <button
-                        onClick={() => toggleRecommendationStatus(item.id, item.is_recommended)}
-                        className={`absolute bottom-2 right-2 p-1.5 rounded-full z-10 ${
-                          item.is_recommended !== false 
-                            ? 'bg-red-500/90 hover:bg-red-600 text-white' 
-                            : 'bg-green-500/90 hover:bg-green-600 text-white'
+                    {item.images && item.images.length > 0 ? (
+                      <div
+                        className={`h-48 w-full relative ${
+                          item.is_recommended === false ? "opacity-70" : ""
                         }`}
-                        aria-label={item.is_recommended !== false ? "Mark as not recommended" : "Mark as recommended"}
                       >
-                        {item.is_recommended !== false ? <ThumbsDown size={16} /> : <ThumbsUp size={16} />}
-                      </button>
-                    )}
-
-                    {(item.images && item.images.length > 0) ? (
-                      <div className={`h-48 w-full relative ${item.is_recommended === false ? 'opacity-70' : ''}`}>
                         <img
                           src={item.images[0]}
                           alt={item.name}
@@ -765,8 +1161,14 @@ export default function RecommendationsPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className={`h-48 w-full bg-gray-200 flex items-center justify-center ${item.is_recommended === false ? 'opacity-70' : ''}`}>
-                        <span className="text-gray-400 text-lg capitalize">{item.category}</span>
+                      <div
+                        className={`h-48 w-full bg-gray-200 flex items-center justify-center ${
+                          item.is_recommended === false ? "opacity-70" : ""
+                        }`}
+                      >
+                        <span className="text-gray-400 text-lg capitalize">
+                          {item.category}
+                        </span>
                       </div>
                     )}
 
@@ -778,7 +1180,9 @@ export default function RecommendationsPage() {
                       )}
 
                       {item.description && (
-                        <p className="text-gray-600 text-sm mb-4">{item.description}</p>
+                        <p className="text-gray-600 text-sm mb-4">
+                          {item.description}
+                        </p>
                       )}
 
                       <div className="space-y-2 mb-4">
@@ -792,7 +1196,10 @@ export default function RecommendationsPage() {
                         {item.phone_number && (
                           <div className="flex items-center text-sm">
                             <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                            <a href={`tel:${item.phone_number}`} className="text-blue-600 hover:underline">
+                            <a
+                              href={`tel:${item.phone_number}`}
+                              className="text-blue-600 hover:underline"
+                            >
                               {item.phone_number}
                             </a>
                           </div>
@@ -818,13 +1225,16 @@ export default function RecommendationsPage() {
                         </h4>
 
                         <div className="space-y-3 mb-3 max-h-40 overflow-y-auto">
-                          {notes[item.id]?.map(note => (
-                            <div key={note.id} className="text-sm bg-gray-50 p-2 rounded">
+                          {notes[item.id]?.map((note) => (
+                            <div
+                              key={note.id}
+                              className="text-sm bg-gray-50 p-2 rounded"
+                            >
                               <div className="flex items-center gap-2 mb-1">
                                 {note.user_avatar ? (
-                                  <img 
-                                    src={note.user_avatar} 
-                                    alt={note.user_name} 
+                                  <img
+                                    src={note.user_avatar}
+                                    alt={note.user_name}
                                     className="h-6 w-6 rounded-full"
                                   />
                                 ) : (
@@ -832,31 +1242,53 @@ export default function RecommendationsPage() {
                                     {note.user_name?.charAt(0) || "?"}
                                   </div>
                                 )}
-                                <span className="font-medium">{note.user_name}</span>
+                                <span className="font-medium">
+                                  {note.user_name}
+                                </span>
                                 <span className="text-xs text-gray-500">
-                                  {new Date(note.created_at).toLocaleDateString()}
+                                  {new Date(
+                                    note.created_at
+                                  ).toLocaleDateString()}
                                 </span>
                               </div>
-                              <p className="text-gray-700 pl-8">{note.content}</p>
+                              <p className="text-gray-700 pl-8">
+                                {note.content}
+                              </p>
                             </div>
                           ))}
 
-                          {(!notes[item.id] || notes[item.id]?.length === 0) && (
-                            <p className="text-sm text-gray-500 italic">No notes yet. Be the first to add one!</p>
+                          {(!notes[item.id] ||
+                            notes[item.id]?.length === 0) && (
+                            <p className="text-sm text-gray-500 italic">
+                              No notes yet. Be the first to add one!
+                            </p>
                           )}
                         </div>
 
                         <div className="flex items-center mt-2">
+                          <label
+                            htmlFor={`note-input-${item.id}`}
+                            className="sr-only"
+                          >
+                            Add a note for {item.name}
+                          </label>
                           <input
+                            id={`note-input-${item.id}`}
                             type="text"
                             placeholder="Add a note..."
                             value={newNotes[item.id] || ""}
-                            onChange={(e) => setNewNotes({...newNotes, [item.id]: e.target.value})}
+                            onChange={(e) =>
+                              setNewNotes({
+                                ...newNotes,
+                                [item.id]: e.target.value,
+                              })
+                            }
                             className="flex-1 text-sm border rounded-l-md py-1 px-2"
                           />
                           <button
                             onClick={() => handleAddNote(item.id)}
                             className="bg-blue-500 text-white text-sm py-1 px-3 rounded-r-md hover:bg-blue-600"
+                            aria-label={`Add note to ${item.name}`}
                           >
                             Add
                           </button>

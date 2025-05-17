@@ -1,5 +1,6 @@
 "use client";
 
+import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { useState, useEffect } from "react";
 import PermissionGate from "@/components/PermissionGate";
 import { useAuth } from "@/components/AuthProvider";
@@ -93,106 +94,115 @@ export default function ContactsPage() {
   });
 
   return (
-    <PermissionGate
-      requiredRole="family"
-      fallback={<div className="text-center p-8">Access restricted</div>}
-    >
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Contacts</h1>
-        <div className="py-8 px-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-              <div className="relative w-full sm:w-64">
-                <input
-                  type="text"
-                  placeholder="Search contacts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md"
-                />
+    <AuthenticatedLayout>
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold">Contacts</h1>
+          </div>
+          <PermissionGate
+            requiredRole="family"
+            fallback={<div className="text-center p-8">Access restricted</div>}
+          >
+            <div className="py-8 px-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                  <div className="relative w-full sm:w-64">
+                    <input
+                      type="text"
+                      placeholder="Search contacts..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+
+                  {hasPermission("manager") && (
+                    <button
+                      className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg"
+                      onClick={() => {
+                        setEditingContact(null);
+                        setShowAddForm(true);
+                      }}
+                    >
+                      <PlusIcon className="h-5 w-5 mr-1" />
+                      Add Contact
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {hasPermission("manager") && (
-                <button
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg"
-                  onClick={() => {
-                    setEditingContact(null);
-                    setShowAddForm(true);
-                  }}
-                >
-                  <PlusIcon className="h-5 w-5 mr-1" />
-                  Add Contact
-                </button>
-              )}
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="text-center py-8">Loading contacts...</div>
-          ) : filteredContacts.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <p className="text-gray-600">
-                {searchTerm
-                  ? "No contacts match your search"
-                  : "No contacts found"}
-              </p>
-              {hasPermission("manager") && !searchTerm && (
-                <p className="text-gray-500 text-sm mt-2">
-                  Add your first contact to get started
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {Object.entries(contactsByRole).map(([role, contacts]) => (
-                <div
-                  key={role}
-                  className="bg-white shadow rounded-lg overflow-hidden"
-                >
-                  <div className="bg-gray-50 px-4 py-3 border-b">
-                    <h2 className="font-medium text-lg">{role}</h2>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-                    {contacts.map((contact) => (
-                      <ContactCard
-                        key={contact.id}
-                        contact={contact}
-                        onEdit={
-                          hasPermission("manager")
-                            ? (contact) =>
-                                handleEditContact({ ...contact, priority: 0 })
-                            : undefined
-                        }
-                        onDelete={
-                          hasPermission("manager")
-                            ? handleDeleteContact
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
+              {loading ? (
+                <div className="text-center py-8">Loading contacts...</div>
+              ) : filteredContacts.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <p className="text-gray-600">
+                    {searchTerm
+                      ? "No contacts match your search"
+                      : "No contacts found"}
+                  </p>
+                  {hasPermission("manager") && !searchTerm && (
+                    <p className="text-gray-500 text-sm mt-2">
+                      Add your first contact to get started
+                    </p>
+                  )}
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-8">
+                  {Object.entries(contactsByRole).map(([role, contacts]) => (
+                    <div
+                      key={role}
+                      className="bg-white shadow rounded-lg overflow-hidden"
+                    >
+                      <div className="bg-gray-50 px-4 py-3 border-b">
+                        <h2 className="font-medium text-lg">{role}</h2>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                        {contacts.map((contact) => (
+                          <ContactCard
+                            key={contact.id}
+                            contact={contact}
+                            onEdit={
+                              hasPermission("manager")
+                                ? (contact) =>
+                                    handleEditContact({
+                                      ...contact,
+                                      priority: 0,
+                                    })
+                                : undefined
+                            }
+                            onDelete={
+                              hasPermission("manager")
+                                ? handleDeleteContact
+                                : undefined
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Contact Form Modal */}
-        {showAddForm && (
-          <ContactForm
-            contact={editingContact}
-            onClose={() => {
-              setShowAddForm(false);
-              setEditingContact(null);
-            }}
-            onSaved={() => {
-              fetchContacts();
-              setShowAddForm(false);
-              setEditingContact(null);
-            }}
-          />
-        )}
+            {/* Contact Form Modal */}
+            {showAddForm && (
+              <ContactForm
+                contact={editingContact}
+                onClose={() => {
+                  setShowAddForm(false);
+                  setEditingContact(null);
+                }}
+                onSaved={() => {
+                  fetchContacts();
+                  setShowAddForm(false);
+                  setEditingContact(null);
+                }}
+              />
+            )}
+          </PermissionGate>
+        </div>
       </div>
-    </PermissionGate>
+    </AuthenticatedLayout>
   );
 }

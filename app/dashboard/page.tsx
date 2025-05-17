@@ -131,29 +131,30 @@ export default function Dashboard() {
       <DevHelper />
       
       <div className="container mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-
-        {process.env.NODE_ENV === "development" && (
-          <div className="p-4 bg-gray-100 rounded-lg mb-4">
-            <h3 className="font-bold text-sm mb-2">Debug Info:</h3>
-            <pre className="text-xs overflow-auto">
-              {JSON.stringify(
-                {
-                  user: {
-                    id: user?.id,
-                    email: user?.email,
-                    roles: user?.roles,
-                    isAdmin: user?.isAdmin,
-                    isFamily: user?.isFamily,
-                    isManager: user?.isManager,
-                  },
-                },
-                null,
-                2
-              )}
-            </pre>
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg shadow-lg mb-8 p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">
+                Welcome, {user?.user_metadata?.full_name || "Guest"}
+              </h1>
+              <p className="opacity-90">
+                {new Date().getHours() < 12
+                  ? "Good morning! Ready to start your day?"
+                  : new Date().getHours() < 18
+                  ? "Good afternoon! Hope your day is going well."
+                  : "Good evening! Here's a summary of your property."}
+              </p>
+            </div>
+            
+            {/* Optional: You could add weather or other useful info here */}
+            <div className="hidden md:block text-right">
+              <div className="text-sm opacity-75">Current Status</div>
+              <div className="text-xl font-bold">Property Ready</div>
+            </div>
           </div>
-        )}
+        </div>
+        
+        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
