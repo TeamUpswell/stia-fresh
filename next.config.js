@@ -3,9 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: [
-      // Add your Supabase storage domain
+      // Your Supabase storage domain
       'hkrgfqpshdoroimlulzw.supabase.co',
-      // Keep any other existing domains if present
+      // Add any other image domains you need
     ],
   },
 };

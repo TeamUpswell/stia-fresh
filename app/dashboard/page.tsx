@@ -1,121 +1,196 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
-import { supabase, logSupabaseError, exploreTableSchema } from "@/lib/supabase";
-import AuthenticatedLayout from "@/components/AuthenticatedLayout";
-import DevHelper from './DevHelper';
-
-// Define types for your data
-type Reservation = {
-  id: string;
-  guest_name: string;
-  start_date: string;
-  end_date: string;
-  status: string;
-  adults: number;
-  children?: number;
-};
-
-// Update your Task type to be more flexible
-type Task = {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  priority: "low" | "medium" | "high";
-  // Make these fields optional since we're not sure which one exists
-  type?: string;
-  category?: string;
-  task_category?: string;
-  task_type?: string;
-  due_date?: string;
-  assigned_to?: string;
-  [key: string]: any; // Allow any additional fields
-};
+import AuthenticatedLayout from "@/components/AuthenticatedLayout"; // Add this import
+import {
+  Calendar,
+  Clock,
+  BarChart3,
+  CheckCircle,
+  PlusCircle,
+  User,
+  Settings,
+  LogOut,
+  Bell,
+  ChevronRight,
+  Inbox,
+  Users,
+  Pencil
+} from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
+import { toast } from "react-hot-toast";
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  // Add proper types to your state
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, loading } = useAuth();
+  const [stats, setStats] = useState({
+    tasksCompleted: 0,
+    tasksInProgress: 0,
+    upcomingEvents: 0,
+    totalProjects: 0
+  });
+  const [recentItems, setRecentItems] = useState([]);
+  const [property, setProperty] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Use this once to examine your table structure
   useEffect(() => {
-    if (user) {
-      // Log the task table schema
-      exploreTableSchema("tasks").then(columns => {
-        if (columns) {
-          console.log("Tasks table columns:", columns);
+    // Fetch property data
+    async function fetchPropertyData() {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("*")
+          .single();
+
+        if (!error && data) {
+          setProperty(data);
         }
-      });
+      } catch (error) {
+        console.error("Error fetching property data:", error);
+      }
     }
+
+    fetchPropertyData();
   }, [user]);
 
   useEffect(() => {
+    // Fetch dashboard data
     async function fetchDashboardData() {
       if (!user) return;
 
       try {
-        // Fetch upcoming reservations (this part is working fine)
-        const { data: reservationData } = await supabase
-          .from("reservations")
-          .select("*")
-          .gte("start_date", new Date().toISOString().split("T")[0])
-          .order("start_date", { ascending: true })
-          .limit(3);
-
-        if (reservationData) {
-          setReservations(reservationData as Reservation[]);
-        }
-
-        // Fetch tasks without the non-existent column filter
+        // Example query - replace with your actual data model
         const { data: tasksData, error: tasksError } = await supabase
           .from("tasks")
           .select("*")
-          .neq("status", "completed")
-          .order("priority", { ascending: false });
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(5);
 
-        if (tasksError) {
-          logSupabaseError(tasksError, "fetching tasks");
-        }
+        if (!tasksError && tasksData) {
+          // Calculate stats
+          const completed = tasksData.filter(t => t.status === "completed").length;
 
-        if (tasksData) {
-          // Filter maintenance tasks with improved logic
-          const maintenanceKeywords = [
-            'maintenance', 
-            'repair', 
-            'fix', 
-            'broken', 
-            'replace', 
-            'install',
-            'plumbing',
-            'electrical',
-            'hvac',
-            'appliance'
-          ];
-          
-          const maintenanceTasks = tasksData.filter(task => {
-            const title = task.title?.toLowerCase() || '';
-            const description = task.description?.toLowerCase() || '';
-            
-            return maintenanceKeywords.some(keyword => 
-              title.includes(keyword) || description.includes(keyword)
-            );
-          }).slice(0, 4); // Limit to 4 tasks
-          
-          setTasks(maintenanceTasks as Task[]);
+          setStats({
+            tasksCompleted: completed,
+            tasksInProgress: tasksData.filter(t => t.status === "in_progress").length,
+            upcomingEvents: 3, // Replace with actual count
+            totalProjects: 2 // Replace with actual count
+          });
+
+          setRecentItems(tasksData);
         }
       } catch (error) {
-        console.error("Error in fetchDashboardData:", error);
-      } finally {
-        setLoading(false);
+        console.error("Error fetching dashboard data:", error);
       }
     }
 
     fetchDashboardData();
   }, [user]);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Log for debugging
+    console.log("File selected:", file.name, file.type, file.size);
+    
+    // Validate file type and size
+    if (!file.type.match(/image\/(jpeg|jpg|png|webp|gif)/i)) {
+      toast.error("Please select a valid image file (JPEG, PNG, GIF)");
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error("Image must be less than 5MB");
+      return;
+    }
+    
+    setIsUploading(true);
+    setUploadProgress(0);
+    
+    try {
+      // Create unique filename with UUID for reliability
+      const fileExt = file.name.split('.').pop();
+      const fileName = `property-${uuidv4()}.${fileExt}`;
+      const filePath = `properties/${fileName}`;
+      
+      console.log("Uploading to path:", filePath);
+      
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from("properties")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+          onUploadProgress: (progress) => {
+            const percent = Math.round((progress.loaded / progress.total) * 100);
+            setUploadProgress(percent);
+          },
+        });
+        
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("properties")
+        .getPublicUrl(filePath);
+        
+      const publicUrl = publicUrlData.publicUrl;
+      console.log("Public URL:", publicUrl);
+      
+      if (!publicUrl) {
+        throw new Error("Failed to get public URL");
+      }
+      
+      // Check if we have a property ID before updating
+      if (!property?.id) {
+        console.error("No property ID available");
+        // Create a new property if one doesn't exist
+        const { data: newProperty, error: createError } = await supabase
+          .from("properties")
+          .insert([{ 
+            name: "My Property", 
+            main_photo_url: publicUrl 
+          }])
+          .select()
+          .single();
+          
+        if (createError) throw createError;
+        setProperty(newProperty);
+        toast.success("Property created with new image!");
+      } else {
+        // Update existing property record
+        const { error: updateError } = await supabase
+          .from("properties")
+          .update({ main_photo_url: publicUrl })
+          .eq("id", property.id);
+          
+        if (updateError) throw updateError;
+        
+        // Update local state
+        setProperty({
+          ...property,
+          main_photo_url: publicUrl
+        });
+        toast.success("Property image updated successfully!");
+      }
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      toast.error(error.message || "Failed to upload image. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -127,311 +202,204 @@ export default function Dashboard() {
 
   return (
     <AuthenticatedLayout>
-      {/* Add the DevHelper component at the top of your Dashboard */}
-      <DevHelper />
-      
-      <div className="container mx-auto">
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg shadow-lg mb-8 p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold mb-2">
-                Welcome, {user?.user_metadata?.full_name || "Guest"}
-              </h1>
-              <p className="opacity-90">
-                {new Date().getHours() < 12
-                  ? "Good morning! Ready to start your day?"
-                  : new Date().getHours() < 18
-                  ? "Good afternoon! Hope your day is going well."
-                  : "Good evening! Here's a summary of your property."}
-              </p>
-            </div>
-            
-            {/* Optional: You could add weather or other useful info here */}
-            <div className="hidden md:block text-right">
-              <div className="text-sm opacity-75">Current Status</div>
-              <div className="text-xl font-bold">Property Ready</div>
-            </div>
-          </div>
-        </div>
-        
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow flex items-center">
-            <div className="rounded-full bg-blue-100 p-3 mr-4">
-              <svg
-                className="h-6 w-6 text-blue-600"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
-              </svg>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Upcoming Stays</p>
-              <p className="text-xl font-semibold">{reservations.length}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow flex items-center">
-            <div className="rounded-full bg-green-100 p-3 mr-4">
-              <svg
-                className="h-6 w-6 text-green-600"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
-              </svg>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Pending Tasks</p>
-              <p className="text-xl font-semibold">{tasks.length}</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow flex items-center">
-            <div className="rounded-full bg-yellow-100 p-3 mr-4">
-              <svg
-                className="h-6 w-6 text-yellow-600"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Next Arrival</p>
-              <p className="text-xl font-semibold">
-                {reservations.length > 0
-                  ? new Date(reservations[0].start_date).toLocaleDateString()
-                  : "None"}
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow flex items-center">
-            <div className="rounded-full bg-purple-100 p-3 mr-4">
-              <svg
-                className="h-6 w-6 text-purple-600"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Property Status</p>
-              <p className="text-xl font-semibold">Ready</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Upcoming Reservations */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4">Upcoming Reservations</h2>
-
-          {reservations.length === 0 ? (
-            <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
-              No upcoming reservations
-            </div>
+      {/* Main Content */}
+      <div className="container mx-auto p-4 sm:p-6 lg:p-8">
+        {/* Property Hero Header */}
+        <div className="relative rounded-xl overflow-hidden h-64 mb-8 group">
+          {/* Property Image */}
+          {property?.main_photo_url ? (
+            <Image
+              src={property.main_photo_url}
+              alt={property.name || "Property"}
+              fill
+              className="object-cover"
+              priority
+            />
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Guest
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Arrive
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Depart
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Guests
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {reservations.map((reservation) => (
-                    <tr key={reservation.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {reservation.guest_name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {new Date(
-                            reservation.start_date
-                          ).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {new Date(reservation.end_date).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {reservation.adults + (reservation.children || 0)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {reservation.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="w-full h-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
+              <p className="text-white text-lg">Add a property image</p>
             </div>
           )}
-        </div>
 
-        {/* Maintenance Tasks */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">Maintenance Tasks</h2>
-            <button 
-              onClick={() => window.location.href = '/tasks/new'} 
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm flex items-center"
+          {/* Image Upload Button - Better Solution */}
+          <div className="absolute top-4 right-4 z-20">
+            <button
+              onClick={() => {
+                if (!isUploading) {
+                  const fileInput = document.getElementById("property-image-upload");
+                  if (fileInput) fileInput.click();
+                }
+              }}
+              disabled={isUploading}
+              type="button"
+              className={`${isUploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'} p-2 rounded-full shadow-lg transition-colors`}
+              aria-label="Change property image"
             >
-              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-              </svg>
-              New Task
+              {isUploading ? (
+                <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <Pencil className="h-5 w-5 text-white" />
+              )}
             </button>
+            
+            <input
+              id="property-image-upload"
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleImageUpload}
+            />
           </div>
 
-          {tasks.length === 0 ? (
-            <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
-              <p className="mb-4">No pending maintenance tasks</p>
-              <button 
-                onClick={() => window.location.href = '/tasks/new'} 
-                className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm inline-flex items-center"
-              >
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                </svg>
-                Create Task
-              </button>
+          {/* Upload Progress Indicator */}
+          {isUploading && (
+            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
+              <div className="w-64 bg-gray-200 rounded-full h-2.5 mb-4">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{width: `${uploadProgress}%`}}
+                ></div>
+              </div>
+              <p className="text-white">Uploading... {uploadProgress}%</p>
             </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {tasks.map((task) => (
-                  <div key={task.id} className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-                    <div className="flex justify-between">
-                      <h3 className="font-medium">{task.title}</h3>
-                      <div className="relative">
-                        <button 
-                          aria-label="Task options menu"
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                      {task.description}
-                    </p>
-                    
-                    {/* Due date if available */}
-                    {task.due_date && (
-                      <div className="mt-3 text-xs text-gray-500 flex items-center">
-                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                        </svg>
-                        Due: {new Date(task.due_date).toLocaleDateString()}
-                      </div>
-                    )}
-                    
-                    <div className="mt-3 flex justify-between items-center">
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          task.priority === "high"
-                            ? "bg-red-100 text-red-800"
-                            : task.priority === "medium"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {task.priority}
-                      </span>
-                      
-                      {/* Assigned to badge if available */}
-                      {task.assigned_to && (
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {task.assigned_to}
-                        </span>
-                      )}
-                      
-                      {/* Complete task button */}
-                      <button 
-                        onClick={async () => {
-                          // Update task status to completed
-                          const { error } = await supabase
-                            .from('tasks')
-                            .update({ status: 'completed' })
-                            .eq('id', task.id);
-                            
-                          if (error) {
-                            logSupabaseError(error, "completing task");
-                            return;
-                          }
-                          
-                          // Refresh tasks
-                          setTasks(tasks.filter(t => t.id !== task.id));
-                        }}
-                        className="ml-auto bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs"
-                      >
-                        Complete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {/* View all link */}
-              <div className="mt-4 text-right">
-                <a 
-                  href="/tasks?filter=maintenance" 
-                  className="text-blue-500 hover:text-blue-700 text-sm font-medium flex items-center justify-end"
-                >
-                  View all maintenance tasks
-                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
-                  </svg>
-                </a>
-              </div>
-            </>
           )}
+
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-6">
+            <h1 className="text-3xl font-bold text-white mb-2">
+              {property?.name || "My Property"}
+            </h1>
+            <p className="text-white/80">
+              Welcome, {user?.email?.split("@")[0] || "Guest"}! Here's what's happening today.
+            </p>
+          </div>
         </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="rounded-full p-3 bg-blue-100">
+                <CheckCircle className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-sm font-medium text-gray-500">Tasks Completed</h3>
+                <span className="text-2xl font-semibold">{stats.tasksCompleted}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="rounded-full p-3 bg-green-100">
+                <Clock className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-sm font-medium text-gray-500">In Progress</h3>
+                <span className="text-2xl font-semibold">{stats.tasksInProgress}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="rounded-full p-3 bg-purple-100">
+                <Calendar className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-sm font-medium text-gray-500">Upcoming Events</h3>
+                <span className="text-2xl font-semibold">{stats.upcomingEvents}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="rounded-full p-3 bg-yellow-100">
+                <Inbox className="h-6 w-6 text-yellow-600" />
+              </div>
+              <div className="ml-4">
+                <h3 className="text-sm font-medium text-gray-500">Total Projects</h3>
+                <span className="text-2xl font-semibold">{stats.totalProjects}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900">Quick Actions</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/tasks/new" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+              <PlusCircle className="h-6 w-6 text-blue-600 mb-2" />
+              <h3 className="font-medium">New Task</h3>
+              <p className="text-sm text-gray-500">Create a task or to-do</p>
+            </Link>
+            <Link href="/calendar/event/new" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+              <Calendar className="h-6 w-6 text-blue-600 mb-2" />
+              <h3 className="font-medium">Schedule Event</h3>
+              <p className="text-sm text-gray-500">Add to your calendar</p>
+            </Link>
+            <Link href="/inventory/new" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+              <Inbox className="h-6 w-6 text-blue-600 mb-2" />
+              <h3 className="font-medium">Add to Inventory</h3>
+              <p className="text-sm text-gray-500">Track new items</p>
+            </Link>
+            <Link href="/settings/profile" className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow">
+              <Settings className="h-6 w-6 text-blue-600 mb-2" />
+              <h3 className="font-medium">Account Settings</h3>
+              <p className="text-sm text-gray-500">Update your profile</p>
+            </Link>
+          </div>
+        </section>
+
+        {/* Recent Activity */}
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+            <Link href="/tasks" className="text-blue-600 text-sm hover:underline">
+              View all
+            </Link>
+          </div>
+
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {recentItems.length > 0 ? (
+              <ul className="divide-y divide-gray-200">
+                {recentItems.map((item, index) => (
+                  <li key={index}>
+                    <Link href={`/tasks/${item.id}`} className="block hover:bg-gray-50">
+                      <div className="px-6 py-4">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-gray-900">{item.title || "Task title"}</p>
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            item.status === "completed" ? "bg-green-100 text-green-800" : 
+                            item.status === "in_progress" ? "bg-blue-100 text-blue-800" : 
+                            "bg-yellow-100 text-yellow-800"
+                          }`}>
+                            {item.status || "pending"}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-1">
+                          {item.description?.substring(0, 100) || "No description available"}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="p-6 text-center text-gray-500">
+                <p>No recent activity to show</p>
+                <Link href="/tasks/new" className="text-blue-600 hover:underline mt-2 inline-block">
+                  Create your first task
+                </Link>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </AuthenticatedLayout>
   );

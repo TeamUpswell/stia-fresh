@@ -21,58 +21,44 @@ export default function GoogleMapComponent({
 
   useEffect(() => {
     if (!mapRef.current) return;
-
+    
     const initMap = async () => {
       try {
-        // Use the shared function instead of creating a new loader
         await loadMapsApi();
-
-        const position = { lat: latitude, lng: longitude };
-
+        
         const mapOptions = {
-          center: position,
-          zoom,
-          mapTypeControl: true,
-          streetViewControl: true,
-          fullscreenControl: true,
+          center: { lat: latitude, lng: longitude },
+          zoom: zoom,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
         };
-
+        
         const map = new google.maps.Map(mapRef.current, mapOptions);
-        const marker = new google.maps.Marker({
-          position,
-          map,
+        
+        new google.maps.Marker({
+          position: { lat: latitude, lng: longitude },
+          map: map,
           title: address,
         });
-
-        const infoWindow = new google.maps.InfoWindow({
-          content: `<div style="padding: 8px;"><strong>${address}</strong></div>`,
-        });
-
-        marker.addListener("click", () => {
-          infoWindow.open(map, marker);
-        });
-
+        
         setMapLoaded(true);
       } catch (error) {
         console.error("Error initializing map:", error);
       }
     };
-
+    
     initMap();
   }, [latitude, longitude, address, zoom]);
 
   return (
-    <div className="w-full h-full">
+    <div className="relative w-full h-full">
+      <div ref={mapRef} className="absolute inset-0" />
       {!mapLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-400">
-          Loading map...
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
         </div>
       )}
-      <div 
-        ref={mapRef} 
-        className="w-full h-full" 
-        style={{ minHeight: "100%", position: "relative" }}
-      />
     </div>
   );
 }

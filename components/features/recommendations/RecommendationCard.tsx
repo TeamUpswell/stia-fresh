@@ -128,7 +128,8 @@ export default function RecommendationCard({
             {onEdit && (
               <button
                 onClick={onEdit}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                className="text-gray-400 hover:text-blue-500"
+                aria-label="Edit recommendation"
               >
                 <PencilIcon className="h-5 w-5" />
               </button>
@@ -144,7 +145,8 @@ export default function RecommendationCard({
                     onDelete();
                   }
                 }}
-                className="p-2 text-red-600 hover:bg-red-50 rounded"
+                className="text-gray-400 hover:text-red-500"
+                aria-label="Delete recommendation"
               >
                 <TrashIcon className="h-5 w-5" />
               </button>

@@ -1,20 +1,20 @@
 "use client";
 
-import { ReactNode } from "react";
-import Sidebar from "./Sidebar";
+import { useAuth } from "./AuthProvider";
+import SideNavigation from "@/components/layout/SideNavigation";
 
-interface AuthenticatedLayoutProps {
-  children: ReactNode;
-}
+export default function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
 
-export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
+  if (!user) {
+    return null; // Or a loading state
+  }
+
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
+    <div className="flex h-screen overflow-hidden">
+      <SideNavigation user={user} />
       <div className="flex-1 overflow-auto">
-        <main className="p-4">
-          {children}
-        </main>
+        {children}
       </div>
     </div>
   );
