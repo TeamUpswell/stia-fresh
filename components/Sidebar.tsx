@@ -14,6 +14,7 @@ import {
   FileText,
   Bell,
   PhoneCall,
+  Home,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -127,6 +128,18 @@ export default function Sidebar() {
             User Management
           </Link>
         )}
+
+        <Link
+          href="/admin/property"
+          className={`flex items-center px-4 py-3 rounded-md ${
+            isActive("/admin/property")
+              ? "text-gray-900 bg-blue-50 font-medium"
+              : "text-gray-600 hover:bg-gray-100"
+          }`}
+        >
+          <Home className="w-5 h-5 mr-3" />
+          Property Settings
+        </Link>
       </div>
     </aside>
   );

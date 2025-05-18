@@ -70,21 +70,31 @@ export default function AuthDebug() {
       
       <div className="space-y-4 mb-6">
         <div>
-          <label className="block mb-1">Email</label>
+          <label htmlFor="input-id-1" className="block text-sm font-medium text-gray-700 mb-1">
+            Input Label Text
+          </label>
           <input 
+            id="input-id-1"
             type="email" 
             value={email} 
             onChange={e => setEmail(e.target.value)} 
+            aria-label="Description of what this input is for"
+            placeholder="Helpful placeholder text"
             className="w-full p-2 border rounded"
           />
         </div>
         
         <div>
-          <label className="block mb-1">Password (min 6 chars)</label>
+          <label htmlFor="input-id-2" className="block text-sm font-medium text-gray-700 mb-1">
+            Second Input Label
+          </label>
           <input 
+            id="input-id-2"
             type="password" 
             value={password} 
             onChange={e => setPassword(e.target.value)} 
+            aria-label="Description of what this second input is for"
+            placeholder="Another helpful placeholder"
             className="w-full p-2 border rounded"
           />
         </div>

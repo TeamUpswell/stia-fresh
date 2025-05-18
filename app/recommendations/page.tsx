@@ -556,10 +556,14 @@ export default function RecommendationsPage() {
               <form onSubmit={handleAddRecommendation} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-name"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Name *
                     </label>
                     <input
+                      id="new-name"
                       type="text"
                       value={newRecommendation.name}
                       onChange={(e) =>
@@ -570,14 +574,19 @@ export default function RecommendationsPage() {
                       }
                       required
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation name"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-category"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Category *
                     </label>
                     <input
+                      id="new-category"
                       type="text"
                       value={newRecommendation.category}
                       onChange={(e) =>
@@ -589,14 +598,19 @@ export default function RecommendationsPage() {
                       required
                       placeholder="restaurants, activities, shopping, etc."
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation category"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-address"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Address
                     </label>
                     <input
+                      id="new-address"
                       type="text"
                       value={newRecommendation.address}
                       onChange={(e) =>
@@ -606,14 +620,19 @@ export default function RecommendationsPage() {
                         })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation address"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-website"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Website
                     </label>
                     <input
+                      id="new-website"
                       type="url"
                       value={newRecommendation.website}
                       onChange={(e) =>
@@ -623,14 +642,20 @@ export default function RecommendationsPage() {
                         })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation website"
+                      placeholder="https://example.com"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-phone"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Phone Number
                     </label>
                     <input
+                      id="new-phone"
                       type="text"
                       value={newRecommendation.phone_number}
                       onChange={(e) =>
@@ -640,14 +665,20 @@ export default function RecommendationsPage() {
                         })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation phone number"
+                      placeholder="(123) 456-7890"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label
+                      htmlFor="new-rating"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Rating (1-5)
                     </label>
                     <input
+                      id="new-rating"
                       type="number"
                       min="1"
                       max="5"
@@ -660,14 +691,19 @@ export default function RecommendationsPage() {
                         })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation rating"
                     />
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label 
+                      htmlFor="new-description" 
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
                       Description
                     </label>
                     <textarea
+                      id="new-description"
                       value={newRecommendation.description}
                       onChange={(e) =>
                         setNewRecommendation({
@@ -677,6 +713,8 @@ export default function RecommendationsPage() {
                       }
                       rows={3}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      aria-label="Recommendation description"
+                      placeholder="Describe this place and why you're recommending it..."
                     ></textarea>
                   </div>
 
@@ -687,6 +725,7 @@ export default function RecommendationsPage() {
                     {newRecommendation.images.map((image, index) => (
                       <div key={index} className="flex mb-2">
                         <input
+                          id={`image-url-${index}`}
                           type="url"
                           value={image}
                           onChange={(e) => {
@@ -699,6 +738,7 @@ export default function RecommendationsPage() {
                           }}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
                           placeholder="https://example.com/image.jpg"
+                          aria-label={`Image URL ${index + 1}`}
                         />
                         {index === newRecommendation.images.length - 1 ? (
                           <button
@@ -761,6 +801,7 @@ export default function RecommendationsPage() {
                         setEditingRecommendation(null);
                       }}
                       className="text-gray-400 hover:text-gray-600"
+                      aria-label="Close edit dialog"
                     >
                       <X size={24} />
                     </button>
@@ -779,10 +820,14 @@ export default function RecommendationsPage() {
                   <form onSubmit={handleSaveEdit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          <label
+                          htmlFor="edit-name"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Name *
                         </label>
                         <input
+                          id="edit-name"
                           type="text"
                           value={editingRecommendation.name}
                           onChange={(e) =>
@@ -793,14 +838,19 @@ export default function RecommendationsPage() {
                           }
                           required
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation name"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label
+                          htmlFor="edit-category"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Category *
                         </label>
                         <input
+                          id="edit-category"
                           type="text"
                           value={editingRecommendation.category}
                           onChange={(e) =>
@@ -811,14 +861,19 @@ export default function RecommendationsPage() {
                           }
                           required
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation category"
                         />
                       </div>
 
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label
+                          htmlFor="edit-description"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Description
                         </label>
                         <textarea
+                          id="edit-description"
                           value={editingRecommendation.description || ""}
                           onChange={(e) =>
                             setEditingRecommendation({
@@ -828,14 +883,19 @@ export default function RecommendationsPage() {
                           }
                           rows={3}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation description"
                         ></textarea>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label
+                          htmlFor="edit-address"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Address
                         </label>
                         <input
+                          id="edit-address"
                           type="text"
                           value={editingRecommendation.address || ""}
                           onChange={(e) =>
@@ -845,14 +905,19 @@ export default function RecommendationsPage() {
                             })
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation address"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label
+                          htmlFor="edit-website"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Website
                         </label>
                         <input
+                          id="edit-website"
                           type="url"
                           value={editingRecommendation.website || ""}
                           onChange={(e) =>
@@ -862,14 +927,20 @@ export default function RecommendationsPage() {
                             })
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation website"
+                          placeholder="https://example.com"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label
+                          htmlFor="edit-phone"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Phone Number
                         </label>
                         <input
+                          id="edit-phone"
                           type="text"
                           value={editingRecommendation.phone_number || ""}
                           onChange={(e) =>
@@ -879,14 +950,20 @@ export default function RecommendationsPage() {
                             })
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation phone number"
+                          placeholder="(123) 456-7890"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label
+                          htmlFor="edit-rating"
+                          className="block text-sm font-medium text-gray-700 mb-1"
+                        >
                           Rating (1-5)
                         </label>
                         <input
+                          id="edit-rating"
                           type="number"
                           min="1"
                           max="5"
@@ -899,6 +976,7 @@ export default function RecommendationsPage() {
                             })
                           }
                           className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation rating"
                         />
                       </div>
 
@@ -907,57 +985,55 @@ export default function RecommendationsPage() {
                           Recommendation Status
                         </label>
                         <div className="flex gap-4">
-                          <input
-                            type="radio"
-                            id="recommended-true"
-                            checked={
-                              editingRecommendation.is_recommended !== false
-                            }
-                            onChange={() =>
-                              setEditingRecommendation({
-                                ...editingRecommendation,
-                                is_recommended: true,
-                              })
-                            }
-                            className="h-4 w-4 text-blue-600"
-                            aria-label="Mark as recommended"
-                          />
-                          <label
-                            htmlFor="recommended-true"
-                            className="flex items-center gap-1"
-                          >
-                            <ThumbsUp
-                              size={16}
-                              className="text-green-500"
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id="edit-recommended-true"
+                              checked={
+                                editingRecommendation.is_recommended !== false
+                              }
+                              onChange={() =>
+                                setEditingRecommendation({
+                                  ...editingRecommendation,
+                                  is_recommended: true,
+                                })
+                              }
+                              className="h-4 w-4 text-blue-600"
+                              aria-label="Mark as recommended"
                             />
-                            Recommended
-                          </label>
+                            <label
+                              htmlFor="edit-recommended-true"
+                              className="ml-2 flex items-center gap-1"
+                            >
+                              <ThumbsUp size={16} className="text-green-500" />
+                              Recommended
+                            </label>
+                          </div>
 
-                          <input
-                            type="radio"
-                            id="recommended-false"
-                            checked={
-                              editingRecommendation.is_recommended === false
-                            }
-                            onChange={() =>
-                              setEditingRecommendation({
-                                ...editingRecommendation,
-                                is_recommended: false,
-                              })
-                            }
-                            className="h-4 w-4 text-blue-600"
-                            aria-label="Mark as not recommended"
-                          />
-                          <label
-                            htmlFor="recommended-false"
-                            className="flex items-center gap-1"
-                          >
-                            <ThumbsDown
-                              size={16}
-                              className="text-red-500"
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              id="edit-recommended-false"
+                              checked={
+                                editingRecommendation.is_recommended === false
+                              }
+                              onChange={() =>
+                                setEditingRecommendation({
+                                  ...editingRecommendation,
+                                  is_recommended: false,
+                                })
+                              }
+                              className="h-4 w-4 text-blue-600"
+                              aria-label="Mark as not recommended"
                             />
-                            Not Recommended
-                          </label>
+                            <label
+                              htmlFor="edit-recommended-false"
+                              className="ml-2 flex items-center gap-1"
+                            >
+                              <ThumbsDown size={16} className="text-red-500" />
+                              Not Recommended
+                            </label>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1042,7 +1118,10 @@ export default function RecommendationsPage() {
                   value={recommendationStatus}
                   onChange={(e) =>
                     setRecommendationStatus(
-                      e.target.value as "all" | "recommended" | "not_recommended"
+                      e.target.value as
+                        | "all"
+                        | "recommended"
+                        | "not_recommended"
                     )
                   }
                   className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

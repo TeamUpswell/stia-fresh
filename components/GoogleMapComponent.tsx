@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader } from "@googlemaps/js-api-loader";
+import { loadMapsApi } from "@/lib/googleMaps";
 
 interface GoogleMapProps {
   latitude: number;
@@ -23,23 +23,12 @@ export default function GoogleMapComponent({
     if (!mapRef.current) return;
 
     const initMap = async () => {
-      // Replace with your actual API key
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
-      
-      if (!apiKey) {
-        console.error("Google Maps API key is missing");
-        return;
-      }
-
-      const loader = new Loader({
-        apiKey,
-        version: "weekly",
-      });
-
       try {
-        const google = await loader.load();
+        // Use the shared function instead of creating a new loader
+        await loadMapsApi();
+
         const position = { lat: latitude, lng: longitude };
-        
+
         const mapOptions = {
           center: position,
           zoom,
@@ -65,7 +54,7 @@ export default function GoogleMapComponent({
 
         setMapLoaded(true);
       } catch (error) {
-        console.error("Error loading Google Maps:", error);
+        console.error("Error initializing map:", error);
       }
     };
 

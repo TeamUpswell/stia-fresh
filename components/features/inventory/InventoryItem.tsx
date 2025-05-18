@@ -22,11 +22,15 @@ const InventoryItem: React.FC<InventoryItemProps> = ({ id, name, quantity, onUpd
         <div className="flex items-center justify-between p-4 border-b">
             <div className="flex items-center">
                 <span className="mr-4">{name}</span>
+                <label htmlFor={`quantity-${id}`} className="mr-2">Quantity:</label>
                 <input
+                    id={`quantity-${id}`}
                     type="number"
                     value={quantity}
                     onChange={handleQuantityChange}
                     className="border rounded p-1 w-16"
+                    aria-label={`Quantity for ${name}`}
+                    min="0"
                 />
             </div>
             <button
