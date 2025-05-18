@@ -58,6 +58,12 @@ const navigationStructure: NavigationSection[] = [
     category: "Admin",
     items: [
       {
+        name: "Property Settings",
+        href: "/admin/property",
+        icon: CogIcon,
+        requiredRole: "manager",
+      },
+      {
         name: "Users",
         href: "/admin/users",
         icon: UserGroupIcon,
@@ -171,37 +177,6 @@ export default function SideNavigation({ user }: SideNavigationProps) {
           );
         })}
       </div>
-
-      {/* Property Settings at bottom - Updated Style */}
-      {hasPermission("manager") && (
-        <div className="mt-auto border-t border-gray-200">
-          <div className="p-3">
-            <Link
-              href="/admin/property"
-              className={`
-                group flex items-center px-2 py-2 text-sm font-medium rounded-md
-                ${
-                  pathname === "/admin/property"
-                    ? "bg-gray-100 text-gray-900"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }
-              `}
-            >
-              <CogIcon
-                className={`
-                  mr-3 flex-shrink-0 h-5 w-5
-                  ${
-                    pathname === "/admin/property"
-                      ? "text-gray-500"
-                      : "text-gray-400 group-hover:text-gray-500"
-                  }
-                `}
-              />
-              Property Settings
-            </Link>
-          </div>
-        </div>
-      )}
     </aside>
   );
 }
