@@ -17,6 +17,7 @@ import {
   FileText as DocumentTextIcon,
 } from "lucide-react";
 import { useState } from "react";
+import Image from "next/image";
 
 // Define interfaces for navigation items
 interface NavigationItem {
@@ -91,10 +92,15 @@ export default function SideNavigation({ user }: SideNavigationProps) {
 
   return (
     <aside className="bg-white w-64 min-h-screen border-r border-gray-200 flex-shrink-0 flex flex-col overflow-y-auto">
-      {/* Header/Logo */}
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-800">Stia</h2>
-        <p className="text-sm text-gray-500">Property Manager</p>
+      {/* Header/Logo - Centered */}
+      <div className="p-4 border-b border-gray-200 flex items-center justify-center">
+        <Image
+          src="/branding/logo.svg"  
+          alt="Stia"
+          width={100}
+          height={32}
+          priority
+        />
       </div>
 
       {/* Main Navigation */}
