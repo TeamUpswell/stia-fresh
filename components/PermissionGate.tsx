@@ -2,7 +2,8 @@
 
 import { useAuth } from "@/components/AuthProvider";
 
-type UserRole = "admin" | "family" | "manager" | "guest";
+// Update UserRole definition to be clearer about single vs multiple roles
+type UserRole = string | string[];
 
 interface PermissionGateProps {
   children: React.ReactNode;
@@ -27,16 +28,20 @@ export default function PermissionGate({
   if (typeof customCheck === "function") {
     console.log("Using custom permission check for:", requiredRole);
     hasAccess = customCheck();
-    console.log("Custom check result:", hasAccess);
   } else {
-    // Check permissions in order of precedence with null checks
-    hasAccess =
-      (requiredPermission &&
-        typeof hasPermission === "function" &&
-        hasPermission(requiredPermission)) ||
-      (requiredRole &&
-        typeof hasPermission === "function" &&
-        hasPermission(requiredRole));
+    // Handle permission checks based on type
+    if (requiredPermission && typeof hasPermission === "function") {
+      hasAccess = hasPermission(requiredPermission);
+    } else if (requiredRole && typeof hasPermission === "function") {
+      // Handle both string and string[] cases
+      if (Array.isArray(requiredRole)) {
+        // If it's an array, check if the user has any of the required roles
+        hasAccess = requiredRole.some((role) => hasPermission(role));
+      } else {
+        // If it's a single role (string)
+        hasAccess = hasPermission(requiredRole);
+      }
+    }
   }
 
   // Based on access, render children or fallback

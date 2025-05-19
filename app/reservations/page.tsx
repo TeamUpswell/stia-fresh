@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import PermissionGate from "@/components/PermissionGate";
 import { useAuth } from "@/components/AuthProvider";
@@ -30,14 +30,8 @@ export default function ReservationsPage() {
     notes: "",
   });
 
-  // Fetch reservations
-  useEffect(() => {
-    if (user) {
-      fetchReservations();
-    }
-  }, [user]);
-
-  const fetchReservations = async () => {
+  // Memoize the fetchReservations function with useCallback
+  const fetchReservations = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -54,7 +48,14 @@ export default function ReservationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, setLoading, setReservations]);
+
+  // Now update the dependency array to include fetchReservations
+  useEffect(() => {
+    if (user) {
+      fetchReservations();
+    }
+  }, [user, fetchReservations]);
 
   // Handle creating a reservation
   const handleCreateReservation = async (e: React.FormEvent) => {

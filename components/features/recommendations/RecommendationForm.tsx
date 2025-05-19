@@ -1,7 +1,7 @@
 /// <reference types="@types/google.maps" />
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { XMarkIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 import Script from "next/script";
 import styles from "./RecommendationForm.module.css";
@@ -63,6 +63,9 @@ export default function RecommendationForm({
   // Add a debounced search to prevent excessive API calls
   const debouncedSearch = useRef<NodeJS.Timeout | null>(null);
 
+  // Add ref for search timeout
+  const searchTimeout = useRef<NodeJS.Timeout | null>(null);
+
   // Initialize Google Places services when script is loaded
   useEffect(() => {
     if (googleLoaded && mapRef.current) {
@@ -94,47 +97,43 @@ export default function RecommendationForm({
 
   // Handle search query changes
   useEffect(() => {
-    if (searchQuery.trim().length < 3) {
+    handleSearch();
+    return () => {
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+      }
+    };
+  }, [searchQuery, handleSearch]);
+
+  // Wrap handleSearch with useCallback
+  const handleSearch = useCallback(() => {
+    if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
-    const delayDebounce = setTimeout(() => {
-      handleSearch(searchQuery);
-    }, 300);
-
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery]);
-
-  // Update your search function
-  const handleSearch = (query: string) => {
-    if (!query || !googleLoaded || !searchService.current) return;
-
     setIsSearching(true);
-    setSearchResultsVisible(true);
 
-    searchService.current.getPlacePredictions(
-      {
-        input: query,
-        types: ["establishment", "geocode"],
-        componentRestrictions: { country: "us" }, // Optional: restrict to US
-      },
-      (predictions, status) => {
-        if (
-          status !== google.maps.places.PlacesServiceStatus.OK ||
-          !predictions
-        ) {
-          console.error("Error fetching predictions:", status);
-          setSearchResults([]);
-          setIsSearching(false);
-          return;
+    // Add null check before clearing timeout
+    if (searchTimeout.current) {
+      clearTimeout(searchTimeout.current);
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/places/search?query=${encodeURIComponent(searchQuery)}`);
+        const data = await response.json();
+
+        if (data && data.results) {
+          setSearchResults(data.results);
         }
-
-        setSearchResults(predictions);
+      } catch (error) {
+        console.error("Error searching places:", error);
+      } finally {
         setIsSearching(false);
       }
-    );
-  };
+    }, 500);
+  }, [searchQuery, setSearchResults, setIsSearching]);
 
   // Update search input onChange handler
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,7 +148,7 @@ export default function RecommendationForm({
     // Debounce search to avoid excessive API calls
     debouncedSearch.current = setTimeout(() => {
       if (value.trim().length >= 2) {
-        handleSearch(value);
+        handleSearch();
       } else {
         setSearchResults([]);
       }
@@ -280,7 +279,7 @@ export default function RecommendationForm({
     <>
       <Script
         src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-        strategy="beforeInteractive"
+        strategy="afterInteractive"
         onLoad={() => setGoogleLoaded(true)}
       />
 

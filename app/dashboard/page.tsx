@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
-import AuthenticatedLayout from "@/components/AuthenticatedLayout"; // Add this import
+import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import {
   Calendar,
   Clock,
@@ -23,41 +23,58 @@ import {
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "react-hot-toast";
+import { getMainProperty } from "@/lib/propertyService";
+
+// Define types for your data
+interface Property {
+  id: string;
+  name: string;
+  main_photo_url?: string;
+  address?: string;
+  description?: string;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  created_at: string;
+  user_id: string;
+}
+
+interface DashboardStats {
+  tasksCompleted: number;
+  tasksInProgress: number;
+  upcomingEvents: number;
+  totalProjects: number;
+}
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardStats>({
     tasksCompleted: 0,
     tasksInProgress: 0,
     upcomingEvents: 0,
     totalProjects: 0
   });
-  const [recentItems, setRecentItems] = useState([]);
-  const [property, setProperty] = useState(null);
+  const [recentItems, setRecentItems] = useState<Task[]>([]);
+  const [property, setProperty] = useState<Property | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
-    // Fetch property data
-    async function fetchPropertyData() {
-      if (!user) return;
-
+    async function loadPropertyData() {
       try {
-        const { data, error } = await supabase
-          .from("properties")
-          .select("*")
-          .single();
-
-        if (!error && data) {
-          setProperty(data);
-        }
+        const propertyData = await getMainProperty();
+        setProperty(propertyData);
       } catch (error) {
-        console.error("Error fetching property data:", error);
+        console.error("Error loading property:", error);
       }
     }
-
-    fetchPropertyData();
-  }, [user]);
+    
+    loadPropertyData();
+  }, []);
 
   useEffect(() => {
     // Fetch dashboard data
@@ -84,7 +101,7 @@ export default function Dashboard() {
             totalProjects: 2 // Replace with actual count
           });
 
-          setRecentItems(tasksData);
+          setRecentItems(tasksData as Task[]);
         }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -94,7 +111,7 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [user]);
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -123,16 +140,12 @@ export default function Dashboard() {
       
       console.log("Uploading to path:", filePath);
       
-      // Upload to Supabase Storage
+      // Upload to Supabase Storage - fix the onUploadProgress issue
       const { error: uploadError } = await supabase.storage
         .from("properties")
         .upload(filePath, file, {
           cacheControl: "3600",
           upsert: true,
-          onUploadProgress: (progress) => {
-            const percent = Math.round((progress.loaded / progress.total) * 100);
-            setUploadProgress(percent);
-          },
         });
         
       if (uploadError) {
@@ -166,7 +179,7 @@ export default function Dashboard() {
           .single();
           
         if (createError) throw createError;
-        setProperty(newProperty);
+        setProperty(newProperty as Property);
         toast.success("Property created with new image!");
       } else {
         // Update existing property record
@@ -186,7 +199,8 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Error uploading image:", error);
-      toast.error(error.message || "Failed to upload image. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload image. Please try again.";
+      toast.error(errorMessage);
     } finally {
       setIsUploading(false);
     }
@@ -221,7 +235,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Image Upload Button - Better Solution */}
+          {/* Image Upload Button */}
           <div className="absolute top-4 right-4 z-20">
             <button
               onClick={() => {
@@ -242,12 +256,17 @@ export default function Dashboard() {
               )}
             </button>
             
+            {/* Fix accessibility by adding a hidden label */}
+            <label htmlFor="property-image-upload" className="sr-only">
+              Upload property image
+            </label>
             <input
               id="property-image-upload"
               type="file"
               className="hidden"
               accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={handleImageUpload}
+              aria-label="Upload property image"
             />
           </div>
 
@@ -270,10 +289,28 @@ export default function Dashboard() {
               {property?.name || "My Property"}
             </h1>
             <p className="text-white/80">
-              Welcome, {user?.email?.split("@")[0] || "Guest"}! Here's what's happening today.
+              Welcome, {user?.email?.split("@")[0] || "Guest"}! Here&apos;s what&apos;s happening today.
             </p>
           </div>
         </div>
+
+        {/* Property Information */}
+        {property && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4">Property Information</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-medium">Name</h3>
+                <p>{property.name}</p>
+              </div>
+              <div>
+                <h3 className="font-medium">Address</h3>
+                <p>{property.address}</p>
+              </div>
+              {/* Display other property info */}
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -365,8 +402,8 @@ export default function Dashboard() {
           <div className="bg-white rounded-lg shadow overflow-hidden">
             {recentItems.length > 0 ? (
               <ul className="divide-y divide-gray-200">
-                {recentItems.map((item, index) => (
-                  <li key={index}>
+                {recentItems.map((item) => (
+                  <li key={item.id}>
                     <Link href={`/tasks/${item.id}`} className="block hover:bg-gray-50">
                       <div className="px-6 py-4">
                         <div className="flex items-center justify-between">

@@ -28,6 +28,27 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
+  // Define route checks outside the try/catch blocks
+  // Define public routes that don't require authentication
+  const isPublicRoute = PUBLIC_ROUTES.some(route => {
+    // Special case for root path or empty path
+    if ((route === '/' && (req.nextUrl.pathname === '/' || req.nextUrl.pathname === '')) || 
+        req.nextUrl.pathname.startsWith(route)) {
+      console.log("✅ Public route detected:", req.nextUrl.pathname);
+      return true;
+    }
+    return false;
+  });
+
+  // Define routes that require authentication
+  const isProtectedRoute = PROTECTED_ROUTES.some(path => {
+    // Make sure empty paths are never protected
+    if (req.nextUrl.pathname === '' || req.nextUrl.pathname === '/') {
+      return false;
+    }
+    return req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith(path + '/');
+  });
+
   // Set a timeout for the session check
   const sessionPromise = Promise.race([
     supabase.auth.getSession(),
@@ -43,28 +64,6 @@ export async function middleware(req: NextRequest) {
     if (process.env.NODE_ENV !== 'production') {
       console.log("🔑 Session check result:", !!session);
     }
-    
-    // Define public routes that don't require authentication
-    const publicRoutes = PUBLIC_ROUTES;
-    const isPublicRoute = publicRoutes.some(route => {
-      // Special case for root path or empty path
-      if ((route === '/' && (req.nextUrl.pathname === '/' || req.nextUrl.pathname === '')) || 
-          req.nextUrl.pathname.startsWith(route)) {
-        console.log("✅ Public route detected:", req.nextUrl.pathname);
-        return true;
-      }
-      return false;
-    });
-
-    // Define routes that require authentication
-    const protectedPaths = PROTECTED_ROUTES;
-    const isProtectedRoute = protectedPaths.some(path => {
-      // Make sure empty paths are never protected
-      if (req.nextUrl.pathname === '' || req.nextUrl.pathname === '/') {
-        return false;
-      }
-      return req.nextUrl.pathname === path || req.nextUrl.pathname.startsWith(path + '/');
-    });
 
     // Add special case for manual pages
     if (session && req.nextUrl.pathname.startsWith('/manual')) {

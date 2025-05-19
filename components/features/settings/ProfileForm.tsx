@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import { PhotoIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
 
 interface ProfileFormProps {
   profile: {
@@ -163,7 +164,13 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
           <div className="mt-1 flex items-center">
             {profile.avatar_url ? (
               <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-100">
-                <img src={profile.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                <Image
+                  src={profile.avatar_url || "/images/default-avatar.png"}
+                  alt="Profile picture"
+                  width={80}
+                  height={80}
+                  className="h-20 w-20 rounded-full object-cover"
+                />
               </div>
             ) : (
               <div className="h-12 w-12 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center">

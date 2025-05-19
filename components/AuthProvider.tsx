@@ -47,36 +47,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("⚠️ Auth check timed out - forcing loading to false");
       if (isSubscribed) {
         setLoading(false);
-        setUser(null);
+        // Don't reset the user here - just leave whatever state it's in
+        // Remove or comment out this line:
+        // setUser(null);
       }
     }, 20000); // Increased from 10000
 
     // Initial session check with proper error handling
     const checkSession = async () => {
       try {
+        // First get just the session - this should be fast
         const { data: { session } } = await supabase.auth.getSession();
         console.log("🔑 Session check complete:", !!session);
 
+        // If we have a session, update user immediately with basic info
         if (session?.user && isSubscribed) {
-          // Fetch the user's roles from the database
-          const { data: roleData, error: roleError } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", session.user.id);
-
-          const roles = roleError ? [] : roleData?.map(r => r.role) || [];
+          // Set basic user info immediately to prevent blank screen
+          setUser({
+            id: session.user.id,
+            email: session.user.email || '',
+            roles: [], // Will update this in a moment
+            isAdmin: false,
+            isFamily: false,
+            isManager: false
+          });
+          setLoading(false);
           
-          // Set user if component is still mounted
-          if (isSubscribed) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email || '',
-              roles: roles,
-              isAdmin: roles.includes('admin'),
-              isFamily: roles.includes('family'),
-              isManager: roles.includes('manager')
-            });
-            setLoading(false);
+          // Now fetch roles in a separate operation that won't block UI
+          try {
+            const { data: roleData, error: roleError } = await supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", session.user.id);
+
+            const roles = roleError ? [] : roleData?.map(r => r.role) || [];
+            
+            // Update user with roles if component is still mounted
+            if (isSubscribed) {
+              setUser(prev => prev ? {
+                ...prev,
+                roles: roles,
+                isAdmin: roles.includes('admin'),
+                isFamily: roles.includes('family'),
+                isManager: roles.includes('manager')
+              } : null);
+            }
+          } catch (roleError) {
+            console.error("Error fetching roles:", roleError);
           }
         } else if (isSubscribed) {
           setUser(null);
@@ -109,6 +126,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeoutId);
       subscription?.unsubscribe();
     };
+  }, []);
+
+  // Add a session refresh mechanism that runs every 5 minutes
+  useEffect(() => {
+    const refreshSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (error) throw error;
+      } catch (error) {
+        console.error("Failed to refresh session:", error);
+      }
+    };
+    
+    // Initial refresh
+    refreshSession();
+    
+    // Set up interval to refresh before expiration
+    const interval = setInterval(refreshSession, 5 * 60 * 1000); // Every 5 minutes
+    
+    return () => clearInterval(interval);
   }, []);
 
   const login = async (email: string, password: string) => {

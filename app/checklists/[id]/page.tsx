@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import { useAuth } from "@/components/AuthProvider";
@@ -53,16 +53,7 @@ export default function ChecklistDetailPage() {
     8000
   );
 
-  // Fetch checklist and items
-  useEffect(() => {
-    if (user && id) {
-      fetchChecklist();
-      fetchItems();
-      fetchSections();
-    }
-  }, [user, id]);
-
-  const fetchChecklist = async () => {
+  const fetchChecklist = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("checklists")
@@ -75,9 +66,9 @@ export default function ChecklistDetailPage() {
     } catch (error) {
       console.error("Error fetching checklist:", error);
     }
-  };
+  }, [id]);
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
       // Get checklist items
@@ -114,9 +105,9 @@ export default function ChecklistDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, user, setLoading]);
 
-  const fetchSections = async () => {
+  const fetchSections = useCallback(async () => {
     setLoading(true);
     try {
       console.log("Fetching sections...");
@@ -154,7 +145,15 @@ export default function ChecklistDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading, setError]);
+
+  useEffect(() => {
+    if (user && id) {
+      fetchChecklist();
+      fetchItems();
+      fetchSections();
+    }
+  }, [user, id, fetchChecklist, fetchItems, fetchSections]);
 
   const handleToggleCompletion = async (
     itemId: string,

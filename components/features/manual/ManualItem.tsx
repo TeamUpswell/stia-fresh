@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PencilIcon, ChevronUpIcon, ChevronDownIcon, TrashIcon } from "@heroicons/react/24/outline";
 import ReactMarkdown from "react-markdown";
+import Image from "next/image";
 // Use type-only import
 import type { ManualItem as ManualItemType } from "@/types/manual";
 
@@ -79,11 +80,13 @@ export default function ManualItem({ item, onEdit, onDelete }: ManualItemProps) 
           {item.media_urls && item.media_urls.length > 0 && (
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {item.media_urls.map((url, idx) => (
-                <div key={idx} className="rounded-md overflow-hidden">
-                  <img 
+                <div key={idx} className="rounded-md overflow-hidden relative h-48">
+                  <Image 
                     src={url} 
-                    alt={`Image for ${item.title}`} 
-                    className="h-48 w-full object-cover" 
+                    alt={`Image for ${item.title}`}
+                    fill
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                    className="object-cover" 
                   />
                 </div>
               ))}

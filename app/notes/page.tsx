@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider"; // Updated import statement
@@ -52,15 +52,10 @@ export default function NotesPage() {
   const { loading, setLoading, timedOut, setTimedOut } = useLoadingTimeout(
     true,
     8000
-  ); // Update the hook destructuring
+  );
 
-  useEffect(() => {
-    if (user) {
-      fetchNotes();
-    }
-  }, [user]);
-
-  const fetchNotes = async () => {
+  // Wrap fetchNotes with useCallback
+  const fetchNotes = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -75,11 +70,17 @@ export default function NotesPage() {
       setNotes(data || []);
     } catch (error) {
       console.error("Error fetching notes:", error);
-      // Optional: Add error state and display to user
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, setLoading, setNotes]);
+
+  // Update the useEffect to include fetchNotes in dependency array
+  useEffect(() => {
+    if (user) {
+      fetchNotes();
+    }
+  }, [user, fetchNotes]);
 
   const handleAddNote = async () => {
     if (!user) return;

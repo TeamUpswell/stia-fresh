@@ -1,21 +1,21 @@
 import { AuthProvider } from "@/components/AuthProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 import type { Metadata } from "next";
-import { ReactNode } from "react";
-import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
   title: "Stia",
   description: "Stia Application",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" className="dark">
+      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
         <AuthProvider>
-          <Toaster position="top-right" />
-          {children}
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

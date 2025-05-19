@@ -55,11 +55,12 @@ export default function RecommendationCard({
     <div className="bg-white rounded-lg shadow-md overflow-hidden">
       {/* Card header with image */}
       <div className="relative h-48 w-full bg-gray-100">
-        {/* Next Image with proper error handling */}
-        <img
+        <Image
           src={imageSrc}
           alt={`${recommendation.name} - ${recommendation.category}`}
-          className="w-full h-full object-cover"
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           onError={() => setImageError(true)}
         />
 

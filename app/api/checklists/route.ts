@@ -20,10 +20,19 @@ export async function POST(request: Request) {
 
     const { data, error } = await supabase
         .from('checklists')
-        .insert([{ title, items }]);
+        .insert([{ title, items }])
+        .select(); // Add this to return the inserted data
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Check if data is null before accessing index
+    if (!data || data.length === 0) {
+        return NextResponse.json(
+            { message: 'Checklist created but no data returned' }, 
+            { status: 201 }
+        );
     }
 
     return NextResponse.json(data[0], { status: 201 });
@@ -36,10 +45,19 @@ export async function PUT(request: Request) {
     const { data, error } = await supabase
         .from('checklists')
         .update({ title, items })
-        .eq('id', id);
+        .eq('id', id)
+        .select(); // Add this to return the updated data
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Check if data is null before accessing index
+    if (!data || data.length === 0) {
+        return NextResponse.json(
+            { message: 'Checklist updated but no data returned' }, 
+            { status: 200 }
+        );
     }
 
     return NextResponse.json(data[0]);

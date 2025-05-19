@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +21,10 @@ import Image from "next/image";
 import { toast } from "react-hot-toast";
 import PlaceSearch from "@/components/PlaceSearch";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { getMainProperty } from "@/lib/propertyService";
+
+// Import the types from the Google Maps API
+type PlaceResult = google.maps.places.PlaceResult;
 
 interface Coordinates {
   lat: number;
@@ -53,28 +57,6 @@ interface RecommendationNote {
   user_avatar?: string;
 }
 
-interface GooglePlace {
-  name?: string;
-  types?: string[];
-  formatted_address?: string;
-  editorial_summary?: {
-    overview?: string;
-  };
-  website?: string;
-  formatted_phone_number?: string;
-  rating?: number;
-  place_id?: string;
-  photos?: {
-    getUrl: (options: { maxWidth: number; maxHeight: number }) => string;
-  }[];
-  geometry?: {
-    location: {
-      lat: () => number;
-      lng: () => number;
-    };
-  };
-}
-
 export default function RecommendationsPage() {
   const { user, hasPermission } = useAuth();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -101,63 +83,70 @@ export default function RecommendationsPage() {
   const [editingRecommendation, setEditingRecommendation] =
     useState<Recommendation | null>(null);
   const [newNotes, setNewNotes] = useState<Record<string, string>>({});
+  const [property, setProperty] = useState(null);
 
-  useEffect(() => {
-    fetchRecommendations();
-  }, []);
+  const fetchRecommendations = useCallback(async () => {
+    if (!user) return;
 
-  const fetchRecommendations = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("recommendations")
         .select("*")
-        .order("category")
-        .order("name");
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-
       setRecommendations(data || []);
-
-      const uniqueCategories = Array.from(
-        new Set(data?.map((item) => item.category) || [])
-      );
-
-      setCategories(uniqueCategories);
-
-      fetchNotes(data || []);
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load recommendations");
+      console.error("Error fetching recommendations:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, setLoading, setRecommendations]);
+
+  useEffect(() => {
+    if (user) {
+      fetchRecommendations();
+    }
+  }, [user, fetchRecommendations]);
+
+  useEffect(() => {
+    async function loadPropertyData() {
+      try {
+        const propertyData = await getMainProperty();
+        setProperty(propertyData);
+
+        // You can use property data to load location-specific recommendations
+        if (propertyData?.latitude && propertyData?.longitude) {
+          loadNearbyRecommendations(propertyData.latitude, propertyData.longitude);
+        }
+      } catch (error) {
+        console.error("Error loading property:", error);
+      }
+    }
+
+    loadPropertyData();
+  }, []);
 
   const fetchNotes = async (recommendations: Recommendation[]) => {
     if (recommendations.length === 0) return;
 
     try {
-      const recIds = recommendations.map((rec) => rec.id);
+      // Get notes data from Supabase (This part is missing)
       const { data: notesData, error: notesError } = await supabase
-        .from("recommendation_notes")
-        .select(
-          `
-          id, 
-          recommendation_id, 
-          user_id, 
-          content, 
-          created_at,
+        .from('recommendation_notes')
+        .select(`
+          *,
           profiles:user_id (
             full_name,
             avatar_url
           )
-        `
-        )
-        .in("recommendation_id", recIds)
-        .order("created_at", { ascending: false });
-
-      if (!notesError && notesData) {
+        `)
+        .in('recommendation_id', recommendations.map(rec => rec.id));
+      
+      if (notesError) throw notesError;
+      
+      if (notesData && notesData.length > 0) {
         const groupedNotes: Record<string, RecommendationNote[]> = {};
         notesData.forEach((note) => {
           if (!groupedNotes[note.recommendation_id]) {
@@ -435,7 +424,7 @@ export default function RecommendationsPage() {
     }
   };
 
-  const handlePlaceSelect = (place: GooglePlace) => {
+  const handlePlaceSelect = (place: any) => {
     console.log("Selected place:", place);
 
     const newRecommendationData = {
@@ -452,7 +441,7 @@ export default function RecommendationsPage() {
       images: place.photos
         ? place.photos
             .slice(0, 3)
-            .map((photo) => {
+            .map((photo: any) => {
               try {
                 return photo.getUrl({ maxWidth: 800, maxHeight: 600 });
               } catch (e) {
@@ -460,7 +449,7 @@ export default function RecommendationsPage() {
                 return ""; // Fallback empty string
               }
             })
-            .filter((url) => url !== "") // Remove empty strings
+            .filter((url: string) => url !== "") // Remove empty strings
         : [""],
       is_recommended: true,
     };
@@ -1282,22 +1271,24 @@ export default function RecommendationsPage() {
 
                       {item.images && item.images.length > 0 ? (
                         <div
-                          className={`h-48 w-full relative ${
+                          className={`h-32 w-full relative ${
                             item.is_recommended === false ? "opacity-70" : ""
                           }`}
                         >
-                          <img
+                          <Image
                             src={item.images[0]}
                             alt={item.name}
-                            className="w-full h-full object-cover"
+                            width={400}
+                            height={300}
+                            className="w-full h-full rounded-t-lg object-cover"
                           />
-                          <div className="absolute top-2 left-2 bg-gray-900/70 text-white text-xs px-2 py-1 rounded-full capitalize">
+                          <div className="absolute top-2 left-2 bg-white/90 text-gray-800 text-xs px-2 py-1 rounded-full capitalize shadow-sm">
                             {item.category}
                           </div>
                         </div>
                       ) : (
                         <div
-                          className={`h-48 w-full bg-gray-200 flex items-center justify-center ${
+                          className={`h-32 w-full bg-gray-200 flex items-center justify-center ${
                             item.is_recommended === false ? "opacity-70" : ""
                           }`}
                         >
@@ -1369,13 +1360,17 @@ export default function RecommendationsPage() {
                               >
                                 <div className="flex items-center gap-2 mb-1">
                                   {note.user_avatar ? (
-                                    <img
-                                      src={note.user_avatar}
-                                      alt={note.user_name}
-                                      className="h-6 w-6 rounded-full"
-                                    />
+                                    <div className="flex-shrink-0 h-6 w-6 relative rounded-full overflow-hidden">
+                                      <Image
+                                        src={note.user_avatar}
+                                        alt={note.user_name || "User avatar"}
+                                        fill
+                                        sizes="24px"
+                                        className="object-cover"
+                                      />
+                                    </div>
                                   ) : (
-                                    <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-800">
+                                    <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-800 flex-shrink-0">
                                       {note.user_name?.charAt(0) || "?"}
                                     </div>
                                   )}

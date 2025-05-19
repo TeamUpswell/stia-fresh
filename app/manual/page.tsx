@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useProperty } from "@/components/PropertyContext";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import * as LucideIcons from "lucide-react";
+import { toast } from "react-hot-toast"; // Or whichever toast library your project uses
 
 // Keep your existing types
 type ManualSection = {
@@ -57,9 +59,9 @@ type Property = {
 
 export default function ManualPage() {
   const { user } = useAuth();
+  const { property, loading: propertyLoading } = useProperty();
   const [sections, setSections] = useState<ManualSection[]>([]);
   const [items, setItems] = useState<ManualItem[]>([]);
-  const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
   
@@ -67,16 +69,6 @@ export default function ManualPage() {
     async function fetchManualData() {
       setLoading(true);
       try {
-        // Fetch property info with all fields
-        const { data: propertyData, error: propertyError } = await supabase
-          .from('properties')
-          .select('*')
-          .single();
-          
-        if (propertyData && !propertyError) {
-          setProperty(propertyData);
-        }
-        
         // Fetch manual sections ordered by order_index
         const { data: sectionsData, error: sectionsError } = await supabase
           .from('manual_sections')
@@ -150,7 +142,7 @@ export default function ManualPage() {
   return (
     <AuthenticatedLayout>
       <div className="container mx-auto py-6 px-4 max-w-5xl">
-        {loading ? (
+        {loading || propertyLoading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
@@ -200,7 +192,7 @@ export default function ManualPage() {
               </div>
             )}
 
-            {/* Key Property Information */}
+            {/* Essential Property Information */}
             {property && (
               <div className="bg-white rounded-lg shadow-md overflow-hidden">
                 <div className="p-6">
@@ -217,8 +209,8 @@ export default function ManualPage() {
                         <h3 className="font-medium text-black">WiFi Information</h3>
                       </div>
                       <div className="pl-7">
-                        <p className="text-sm mb-1 text-black"><span className="font-medium">Network:</span> {property.wifi_name}</p>
-                        <p className="text-sm text-black"><span className="font-medium">Password:</span> {property.wifi_password}</p>
+                        <p className="text-sm mb-1 text-black"><span className="font-medium">Network:</span> {property.wifi_name || 'Not provided'}</p>
+                        <p className="text-sm text-black"><span className="font-medium">Password:</span> {property.wifi_password || 'Not provided'}</p>
                       </div>
                     </div>
                     
@@ -401,10 +393,8 @@ export default function ManualPage() {
               <div key={section.id} className="bg-white rounded-lg shadow-md overflow-hidden">
                 <div className="p-6">
                   <h2 className="text-xl font-bold mb-4 flex items-center">
-                    <div className="flex items-center">
-                      {getIconComponent(section.icon, "h-5 w-5 mr-2 text-blue-500")}
-                      <h3 className="font-medium text-black">{section.title}</h3>
-                    </div>
+                    {getIconComponent(section.icon, "h-5 w-5 mr-2 text-blue-500")}
+                    <span className="font-medium text-black">{section.title}</span>
                   </h2>
                   
                   {section.description && (

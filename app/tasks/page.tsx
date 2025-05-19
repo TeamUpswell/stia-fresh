@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
@@ -35,7 +35,7 @@ export default function TasksPage() {
   });
   
   // Load tasks based on filter
-  const loadTasks = async () => {
+  const loadTasks = useCallback(async () => {
     if (!user) return;
     
     setLoading(true);
@@ -69,12 +69,12 @@ export default function TasksPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, filter, supabase, setTasks, setLoading]);
 
   // Initial load and reload when filter changes
   useEffect(() => {
     loadTasks();
-  }, [user, filter]);
+  }, [loadTasks]);
 
   // Create a new task
   const handleCreateTask = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth, User } from "@/components/AuthProvider";
+import { useAuth } from "@/components/AuthProvider";
 import {
   Home as HomeIcon,
   Calendar as CalendarIcon,
@@ -37,6 +37,17 @@ interface NavigationItem {
 interface NavigationSection {
   category: string;
   items: NavigationItem[];
+}
+
+// Add a User interface definition
+interface User {
+  id: string;
+  email?: string;
+  user_metadata?: {
+    name?: string;
+    role?: string;
+  };
+  // Add any other properties your user object has
 }
 
 interface SideNavigationProps {
@@ -91,19 +102,16 @@ export default function SideNavigation({ user }: SideNavigationProps) {
     Admin: false,
   });
 
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
 
   // Load theme preference from localStorage on mount
   useEffect(() => {
     // Check for saved preference
     const savedTheme = localStorage.getItem("theme");
 
-    // Check system preference if no saved preference
+    // Default to dark mode if no preference is saved
     if (!savedTheme) {
-      const prefersDark = window.matchMedia(
-        "(prefers-color-scheme: dark)"
-      ).matches;
-      setIsDarkMode(prefersDark);
+      setIsDarkMode(true);
       return;
     }
 
@@ -132,27 +140,24 @@ export default function SideNavigation({ user }: SideNavigationProps) {
     });
   };
 
+  const isActive = (href: string) => pathname === href;
+
   return (
-    <aside
-      className={`${
-        isDarkMode ? "bg-gray-900" : "bg-white"
-      } w-64 min-h-screen border-r ${
-        isDarkMode ? "border-gray-700" : "border-gray-200"
-      } flex-shrink-0 flex flex-col overflow-y-auto transition-colors duration-200`}
-    >
-      {/* Header/Logo - Centered */}
-      <div
-        className={`p-4 border-b ${
-          isDarkMode ? "border-gray-700" : "border-gray-200"
-        } flex items-center justify-center transition-colors duration-200`}
-      >
-        <Image
-          src={isDarkMode ? "/branding/logo-dark.svg" : "/branding/logo.svg"}
-          alt="Stia"
-          width={100}
-          height={32}
-          priority
-        />
+    <div className="fixed inset-y-0 left-0 w-64 hidden md:flex flex-col bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-800 z-10">
+      {/* Header/Logo - Centered with larger dimensions */}
+      <div className="p-6 border-b dark:border-gray-800 flex justify-center items-center">
+        <div className="relative h-16 w-40">
+          <Image
+            src={
+              isDarkMode ? "/images/logo-white.svg" : "/images/logo-dark.svg"
+            }
+            alt="Stia Logo"
+            fill
+            sizes="160px"
+            className="object-contain"
+            priority
+          />
+        </div>
       </div>
 
       {/* Main Navigation */}
@@ -163,6 +168,10 @@ export default function SideNavigation({ user }: SideNavigationProps) {
           return (
             <div key={section.category} className="space-y-1.5">
               {/* Category Header - Updated Style */}
+              <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                {section.category}
+              </div>
+
               <button
                 onClick={() => toggleCategory(section.category)}
                 className={`w-full flex items-center justify-between text-left text-sm font-medium ${
@@ -192,30 +201,22 @@ export default function SideNavigation({ user }: SideNavigationProps) {
                     }
 
                     const IconComponent = item.icon || DocumentTextIcon;
-                    const isActive = pathname === item.href;
 
                     return (
                       <Link
                         key={item.name}
                         href={item.href}
-                        className={`
-                          group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200
-                          ${
-                            isActive
-                              ? isDarkMode
-                                ? "bg-gray-800 text-white"
-                                : "bg-gray-100 text-gray-900"
-                              : isDarkMode
-                              ? "text-gray-300 hover:bg-gray-800 hover:text-white"
-                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                          }
-                        `}
+                        className={`flex items-center px-4 py-2 text-sm rounded-md ${
+                          isActive(item.href)
+                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                            : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        }`}
                       >
                         <IconComponent
                           className={`
                             mr-3 flex-shrink-0 h-5 w-5
                             ${
-                              isActive
+                              isActive(item.href)
                                 ? "text-gray-500"
                                 : "text-gray-400 group-hover:text-gray-500"
                             }
@@ -245,7 +246,9 @@ export default function SideNavigation({ user }: SideNavigationProps) {
               ? "bg-gray-700 text-yellow-400 hover:bg-gray-600"
               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
           } transition-colors duration-200`}
-          aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={
+            isDarkMode ? "Switch to light mode" : "Switch to dark mode"
+          }
         >
           {isDarkMode ? (
             <Sun className="h-5 w-5" />
@@ -254,6 +257,6 @@ export default function SideNavigation({ user }: SideNavigationProps) {
           )}
         </button>
       </div>
-    </aside>
+    </div>
   );
 }

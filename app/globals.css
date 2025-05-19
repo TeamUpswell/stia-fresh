@@ -7,7 +7,12 @@ body {
   @apply bg-gray-100 text-gray-900;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   @apply font-bold;
 }
 
@@ -19,7 +24,8 @@ button {
   @apply bg-blue-500 text-white font-semibold py-2 px-4 rounded;
 }
 
-input, textarea {
+input,
+textarea {
   @apply border border-gray-300 rounded-md p-2;
 }
 
@@ -39,4 +45,244 @@ input, textarea {
 .calendar-view {
   height: 100%;
   width: 100%;
+}
+
+/* Add these dark mode styles at the end of your file */
+
+/* Dark mode text improvements */
+.dark body {
+  background-color: #111827; /* gray-900 */
+  color: #f3f4f6; /* gray-100 */
+}
+
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  color: white;
+}
+
+.dark a {
+  @apply text-blue-400 hover:text-blue-300;
+}
+
+.dark button {
+  /* Existing button styles work well in dark mode */
+}
+
+.dark input,
+.dark textarea {
+  @apply bg-gray-800 border-gray-700 text-white;
+}
+
+.dark .card {
+  @apply bg-gray-900 shadow-lg;
+}
+
+/* Text refinements for better readability */
+.dark .text-gray-500 {
+  color: #d1d5db; /* gray-300 - still visible but slightly muted */
+}
+
+.dark .text-gray-600,
+.dark .text-gray-700 {
+  color: #e5e7eb; /* gray-200 - light enough to be readable */
+}
+
+.dark p,
+.dark li,
+.dark label {
+  color: #e5e7eb; /* gray-200 - light enough to be readable */
+}
+
+/* Replace with this clear rule for elements that remain light in dark mode */
+/* Elements that stay light-colored in dark mode */
+.dark .calendar-container,
+.dark .fc,
+.dark .card-light,
+.dark .white-element {
+  background-color: white;
+  color: #000000;
+}
+
+/* Calendar text should always be dark since calendar remains white */
+.dark .fc-daygrid-day-number,
+.dark .fc-col-header-cell-cushion,
+.dark .fc-toolbar-title,
+.dark .fc th,
+.dark .fc td {
+  color: #000000 !important; /* Black text on calendar */
+  opacity: 1 !important;
+}
+
+/* Only exception is today's date which has white text on blue background */
+.dark .fc-day-today .fc-daygrid-day-number,
+.fc-day-today .fc-daygrid-day-number {
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+/* Stronger headers */
+.fc-toolbar-title {
+  font-weight: 800 !important;
+  font-size: 1.5rem !important;
+}
+
+.fc-col-header-cell-cushion {
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+/* Special case - today's date - white text on blue */
+.fc-day-today .fc-daygrid-day-number {
+  color: white !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* React Big Calendar styles specifically for the white calendar in dark mode */
+
+/* Make all text in calendar black and visible */
+.dark .rbc-calendar {
+  color: black !important;
+}
+
+/* Headers (Sun, Mon, etc) */
+.dark .rbc-header {
+  color: black !important;
+  font-weight: 700 !important;  
+}
+
+/* Day numbers */
+.dark .rbc-date-cell {
+  color: black !important;
+  font-weight: 600 !important;
+}
+
+/* Month title in header */
+.dark .rbc-toolbar-label {
+  color: black !important;
+  font-weight: 700 !important;
+  font-size: 1.25rem !important;
+}
+
+/* Today's cell */
+.dark .rbc-today {
+  background-color: #1e40af !important; /* dark blue */
+}
+.dark .rbc-today .rbc-date-cell {
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+/* Off-range dates (prev/next month) */
+.dark .rbc-off-range {
+  color: #6b7280 !important; /* Make visible but slightly dimmed */
+}
+
+/* Buttons in toolbar */
+.dark .rbc-btn-group button {
+  color: black !important;
+  border-color: #d1d5db !important;
+}
+
+/* Selected button */
+.dark .rbc-active {
+  background-color: #1e40af !important;
+  color: white !important;
+}
+
+/* Add these comprehensive rules for light elements in dark mode */
+
+/* Light-colored elements in dark mode - these stay white/light */
+.dark .light-element,
+.dark .card-light,
+.dark .white-element,
+.dark .calendar-container,
+.dark .rbc-calendar,
+.dark .light-bg,
+.dark .bg-white,
+.dark [data-light-element="true"] {
+  background-color: white !important;
+  color: #000 !important; /* Ensure text is black */
+}
+
+/* Fix ALL text inside light elements - force dark colors */
+.dark .light-element *,
+.dark .card-light *,
+.dark .white-element *,
+.dark .calendar-container *,
+.dark .rbc-calendar *,
+.dark .light-bg *,
+.dark .bg-white *,
+.dark [data-light-element="true"] * {
+  color: inherit; /* Inherit dark text color from parent */
+}
+
+/* Style internal headings */
+.dark .light-element h1, .dark .light-element h2, .dark .light-element h3,
+.dark .card-light h1, .dark .card-light h2, .dark .card-light h3,
+.dark .white-element h1, .dark .white-element h2, .dark .white-element h3 {
+  color: #111827 !important; /* Very dark gray, almost black */
+}
+
+/* Style internal paragraphs, list items, labels */
+.dark .light-element p, .dark .light-element li, .dark .light-element label,
+.dark .card-light p, .dark .card-light li, .dark .card-light label,
+.dark .white-element p, .dark .white-element li, .dark .white-element label {
+  color: #374151 !important; /* Dark gray - good readability */
+}
+
+/* Add this to ensure the sidebar is dark in dark mode */
+
+/* Target the sidebar specifically in dark mode */
+.dark aside,
+.dark .sidebar,
+.dark nav[class*="sidebar"],
+.dark div[class*="sidebar"],
+.dark [class*="SideNavigation"] {
+  background-color: #1f2937 !important; /* gray-800 - dark but not too dark */
+  color: rgb(248, 246, 246) !important;
+  border-right-color: #374151 !important; /* gray-700 */
+}
+
+/* Fix the sidebar header/logo area */
+.dark aside > div:first-child,
+.dark .sidebar > div:first-child {
+  border-bottom-color: #374151 !important; /* gray-700 */
+}
+
+/* Form elements should stay light in dark mode */
+
+/* Keep form inputs light in dark mode */
+.dark input[type="text"],
+.dark input[type="email"], 
+.dark input[type="password"],
+.dark input[type="url"],
+.dark input[type="number"],
+.dark input[type="tel"],
+.dark input[type="search"],
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]),
+.dark textarea,
+.dark select {
+  background-color: white !important;
+  color: #000000 !important;
+  border-color: #d1d5db !important; /* gray-300 */
+}
+
+/* Focus styles for form elements */
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: #3b82f6 !important; /* blue-500 */
+  ring-color: #93c5fd !important; /* blue-200 */
+}
+
+/* Placeholder text color */
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280 !important; /* gray-500 */
 }

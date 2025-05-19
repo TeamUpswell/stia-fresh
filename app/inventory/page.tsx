@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
@@ -74,7 +74,7 @@ export default function InventoryPage() {
     });
   };
 
-  const fetchItems = async () => {
+  const fetchItems = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -91,13 +91,13 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, setLoading, setItems, setError, supabase]);
 
   useEffect(() => {
     if (user) {
       fetchItems();
     }
-  }, [user]);
+  }, [user, fetchItems]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -57,3 +57,33 @@ export interface User {
     createdAt: Date;
     updatedAt: Date;
 }
+
+// Property type definitions
+export interface PropertyFormData {
+    id?: string;
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+    property_type: string;
+    bedrooms: number;
+    bathrooms: number;
+    max_occupancy: number;
+    description: string;
+    latitude: number | null;
+    longitude: number | null;
+    neighborhood_description: string;
+    wifi_name: string;
+    wifi_password: string;
+    check_in_instructions: string;
+    check_out_instructions: string;
+    house_rules: string;
+    security_info: string;
+    parking_info: string;
+    amenities: string[];
+    main_photo_url?: string;
+    created_at?: string;
+    updated_at?: string;
+}

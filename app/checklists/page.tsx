@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import PermissionGate from "@/components/PermissionGate";
 import { useAuth } from "@/components/AuthProvider";
@@ -31,13 +31,7 @@ export default function ChecklistsPage() {
   );
 
   // Fetch checklists
-  useEffect(() => {
-    if (user) {
-      fetchChecklists();
-    }
-  }, [user]);
-
-  const fetchChecklists = async () => {
+  const fetchChecklists = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -52,7 +46,13 @@ export default function ChecklistsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setLoading, setChecklists]);
+
+  useEffect(() => {
+    if (user) {
+      fetchChecklists();
+    }
+  }, [user, fetchChecklists]);
 
   return (
     <ProtectedPageWrapper>

@@ -9,10 +9,20 @@ import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import PermissionGate from "@/components/PermissionGate";
 import { toast } from "react-hot-toast";
 import Image from "next/image";
-import { 
-  Building2, MapPin, Check, X, Upload, Plus, Save,
-  Wifi, Car, Shield, Info
+import {
+  Building2,
+  MapPin,
+  Check,
+  X,
+  Upload,
+  Plus,
+  Save,
+  Wifi,
+  Car,
+  Shield,
+  Info,
 } from "lucide-react";
+import { getPropertyById, updateProperty } from "@/lib/propertyService";
 
 // Define property type for form data
 interface PropertyFormData {
@@ -53,81 +63,106 @@ export default function PropertySettings() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [property, setProperty] = useState<any>(null);
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
-  
+
+  // Add section-specific saving states
+  const [isSavingBasic, setIsSavingBasic] = useState(false);
+  const [isSavingDetails, setIsSavingDetails] = useState(false);
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
+
   // React Hook Form setup
-  const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<PropertyFormData>();
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<PropertyFormData>();
 
   // Property types for dropdown
   const propertyTypes = [
-    "House", "Apartment", "Condo", "Cabin", "Villa", "Townhouse", "Other"
+    "House",
+    "Apartment",
+    "Condo",
+    "Cabin",
+    "Villa",
+    "Townhouse",
+    "Other",
   ];
-  
+
   // Common amenities for checkbox selection
   const commonAmenities = [
-    "Wi-Fi", "Kitchen", "Washer", "Dryer", "Air conditioning", "Heating",
-    "TV", "Pool", "Hot tub", "Patio", "BBQ grill", "Fireplace", "Cable TV",
-    "Free parking", "Gym", "Workspace", "Smoke detector", "First aid kit"
+    "Wi-Fi",
+    "Kitchen",
+    "Washer",
+    "Dryer",
+    "Air conditioning",
+    "Heating",
+    "TV",
+    "Pool",
+    "Hot tub",
+    "Patio",
+    "BBQ grill",
+    "Fireplace",
+    "Cable TV",
+    "Free parking",
+    "Gym",
+    "Workspace",
+    "Smoke detector",
+    "First aid kit",
   ];
 
   // Fetch property data
   useEffect(() => {
-    async function fetchPropertyData() {
-      if (!user) return;
-      
+    async function loadProperty() {
       try {
-        setIsLoading(true);
-        
-        // Try to get existing property
-        const { data, error } = await supabase
-          .from("properties")
-          .select("*")
-          .single();
-          
-        if (error && error.code !== "PGRST116") {
-          console.error("Error fetching property:", error);
-          toast.error("Failed to load property data");
-          return;
+        let propertyData;
+
+        // If propertyId is provided, use that, otherwise get main property
+        if (propertyId) {
+          propertyData = await getPropertyById(propertyId);
+        } else {
+          // Assuming you store the property ID in some state or context
+          const { data } = await supabase
+            .from("properties")
+            .select("id")
+            .limit(1)
+            .single();
+
+          if (data) {
+            propertyData = await getPropertyById(data.id);
+          }
         }
-        
-        if (data) {
-          setProperty(data);
-          
-          // Populate form with existing data
-          Object.entries(data).forEach(([key, value]) => {
-            // Handle amenities array if needed
-            if (key === "amenities" && Array.isArray(value)) {
-              setValue(key as keyof PropertyFormData, value);
-            } else {
-              setValue(key as keyof PropertyFormData, value as any);
-            }
-          });
+
+        if (propertyData) {
+          setProperty(propertyData);
+          // Populate form with property data
+          reset(propertyData);
         }
       } catch (error) {
-        console.error("Error:", error);
-        toast.error("Something went wrong");
-      } finally {
-        setIsLoading(false);
+        console.error("Error loading property:", error);
+        toast.error("Failed to load property data");
       }
     }
-    
-    fetchPropertyData();
-  }, [user, setValue]);
+
+    loadProperty();
+  }, [propertyId, reset]);
 
   // Handle form submission
   const onSubmit = async (data: PropertyFormData) => {
     if (!user) return;
-    
+
     try {
       setIsSaving(true);
-      
+
       // Format data if needed
       const formattedData = {
         ...data,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
-      
+
       let result;
-      
+
       // Update or insert based on whether we have an existing property
       if (property?.id) {
         result = await supabase
@@ -140,13 +175,13 @@ export default function PropertySettings() {
           .insert([formattedData])
           .select();
       }
-      
+
       if (result.error) {
         throw result.error;
       }
-      
+
       toast.success("Property settings saved successfully");
-      
+
       // Update local state
       if (result.data) {
         setProperty(result.data[0] || result.data);
@@ -159,74 +194,174 @@ export default function PropertySettings() {
     }
   };
 
+  // Save Basic Info section
+  const saveBasicInfo = async () => {
+    if (!property?.id) return;
+
+    try {
+      setIsSavingBasic(true);
+
+      // Get only basic info fields
+      const basicInfoData = {
+        name: watch("name"),
+        property_type: watch("property_type"),
+        bedrooms: watch("bedrooms"),
+        bathrooms: watch("bathrooms"),
+        max_occupancy: watch("max_occupancy"),
+        address: watch("address"),
+        city: watch("city"),
+        state: watch("state"),
+        zip: watch("zip"),
+        country: watch("country"),
+        description: watch("description"),
+      };
+
+      await updateProperty(property.id, basicInfoData);
+      toast.success("Basic property info saved");
+    } catch (error) {
+      console.error("Error saving basic info:", error);
+      toast.error("Failed to save basic info");
+    } finally {
+      setIsSavingBasic(false);
+    }
+  };
+
+  // Save Property Details section
+  const savePropertyDetails = async () => {
+    if (!user || !property?.id) return;
+
+    try {
+      setIsSavingDetails(true);
+
+      // Get only property details fields
+      const detailsData = {
+        wifi_name: watch("wifi_name"),
+        wifi_password: watch("wifi_password"),
+        check_in_instructions: watch("check_in_instructions"),
+        check_out_instructions: watch("check_out_instructions"),
+        house_rules: watch("house_rules"),
+        security_info: watch("security_info"),
+        parking_info: watch("parking_info"),
+        amenities: watch("amenities"),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("properties")
+        .update(detailsData)
+        .eq("id", property.id);
+
+      if (error) throw error;
+
+      toast.success("Property details saved");
+    } catch (error: any) {
+      console.error("Error saving property details:", error);
+      toast.error(error.message || "Failed to save property details");
+    } finally {
+      setIsSavingDetails(false);
+    }
+  };
+
+  // Save Location section
+  const saveLocation = async () => {
+    if (!user || !property?.id) return;
+
+    try {
+      setIsSavingLocation(true);
+
+      // Get only location fields
+      const locationData = {
+        latitude: watch("latitude"),
+        longitude: watch("longitude"),
+        neighborhood_description: watch("neighborhood_description"),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("properties")
+        .update(locationData)
+        .eq("id", property.id);
+
+      if (error) throw error;
+
+      toast.success("Location information saved");
+    } catch (error: any) {
+      console.error("Error saving location info:", error);
+      toast.error(error.message || "Failed to save location info");
+    } finally {
+      setIsSavingLocation(false);
+    }
+  };
+
   // Handle main photo upload
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Validate file type and size
     if (!file.type.match(/image\/(jpeg|jpg|png|webp)/i)) {
       toast.error("Please select a valid image file (JPEG, PNG, WEBP)");
       return;
     }
-    
-    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+
+    if (file.size > 10 * 1024 * 1024) {
+      // 10MB limit
       toast.error("Image must be less than 10MB");
       return;
     }
-    
+
     setIsUploading(true);
     setUploadProgress(0);
-    
+
     try {
       // Create unique filename
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split(".").pop();
       const fileName = `property-${Date.now()}.${fileExt}`;
       const filePath = `properties/${fileName}`;
-      
+
       // Set up a progress tracker using XMLHttpRequest
       const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (event) => {
+      xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
           setUploadProgress(percent);
         }
       });
-      
+
       // Upload to Supabase Storage using standard options
       const { error: uploadError } = await supabase.storage
         .from("properties")
         .upload(filePath, file, {
           cacheControl: "3600",
-          upsert: true
+          upsert: true,
         });
-        
+
       if (uploadError) throw uploadError;
-      
+
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("properties")
-        .getPublicUrl(filePath);
-        
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("properties").getPublicUrl(filePath);
+
       if (!property?.id) {
         toast.error("Please save basic property information first");
         return;
       }
-        
+
       // Update property record
       const { error: updateError } = await supabase
         .from("properties")
         .update({ main_photo_url: publicUrl })
         .eq("id", property.id);
-        
+
       if (updateError) throw updateError;
-      
+
       // Update local state
       setProperty({
         ...property,
-        main_photo_url: publicUrl
+        main_photo_url: publicUrl,
       });
-      
+
       // Now this will work because we added main_photo_url to the interface
       setValue("main_photo_url", publicUrl);
       toast.success("Property image updated!");
@@ -240,7 +375,7 @@ export default function PropertySettings() {
 
   // Tab classnames helper
   function classNames(...classes: string[]) {
-    return classes.filter(Boolean).join(' ');
+    return classes.filter(Boolean).join(" ");
   }
 
   return (
@@ -261,15 +396,31 @@ export default function PropertySettings() {
               disabled={isSaving}
               className={`
                 flex items-center px-4 py-2 rounded-md shadow-sm
-                ${isSaving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'}
+                ${isSaving ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
                 text-white font-medium text-sm
               `}
             >
               {isSaving ? (
                 <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
                   </svg>
                   Saving...
                 </span>
@@ -281,23 +432,26 @@ export default function PropertySettings() {
               )}
             </button>
           </div>
-          
+
           {isLoading ? (
             <div className="flex justify-center py-16">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
           ) : (
             <form>
-              <Tab.Group selectedIndex={selectedTabIndex} onChange={setSelectedTabIndex}>
+              <Tab.Group
+                selectedIndex={selectedTabIndex}
+                onChange={setSelectedTabIndex}
+              >
                 <Tab.List className="flex space-x-1 rounded-xl bg-blue-600 p-1 mb-8">
                   <Tab
                     className={({ selected }) =>
                       classNames(
-                        'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                        'ring-white ring-opacity-60 focus:outline-none transition-all',
+                        "w-full rounded-lg py-2.5 text-sm font-medium leading-5",
+                        "ring-white ring-opacity-60 focus:outline-none transition-all",
                         selected
-                          ? 'bg-white text-blue-700 shadow'
-                          : 'text-white hover:bg-blue-700/80'
+                          ? "bg-white text-blue-700 shadow"
+                          : "text-white hover:bg-blue-700/80"
                       )
                     }
                   >
@@ -309,11 +463,11 @@ export default function PropertySettings() {
                   <Tab
                     className={({ selected }) =>
                       classNames(
-                        'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                        'ring-white ring-opacity-60 focus:outline-none transition-all',
+                        "w-full rounded-lg py-2.5 text-sm font-medium leading-5",
+                        "ring-white ring-opacity-60 focus:outline-none transition-all",
                         selected
-                          ? 'bg-white text-blue-700 shadow'
-                          : 'text-white hover:bg-blue-700/80'
+                          ? "bg-white text-blue-700 shadow"
+                          : "text-white hover:bg-blue-700/80"
                       )
                     }
                   >
@@ -325,11 +479,11 @@ export default function PropertySettings() {
                   <Tab
                     className={({ selected }) =>
                       classNames(
-                        'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                        'ring-white ring-opacity-60 focus:outline-none transition-all',
+                        "w-full rounded-lg py-2.5 text-sm font-medium leading-5",
+                        "ring-white ring-opacity-60 focus:outline-none transition-all",
                         selected
-                          ? 'bg-white text-blue-700 shadow'
-                          : 'text-white hover:bg-blue-700/80'
+                          ? "bg-white text-blue-700 shadow"
+                          : "text-white hover:bg-blue-700/80"
                       )
                     }
                   >
@@ -341,11 +495,11 @@ export default function PropertySettings() {
                   <Tab
                     className={({ selected }) =>
                       classNames(
-                        'w-full rounded-lg py-2.5 text-sm font-medium leading-5',
-                        'ring-white ring-opacity-60 focus:outline-none transition-all',
+                        "w-full rounded-lg py-2.5 text-sm font-medium leading-5",
+                        "ring-white ring-opacity-60 focus:outline-none transition-all",
                         selected
-                          ? 'bg-white text-blue-700 shadow'
-                          : 'text-white hover:bg-blue-700/80'
+                          ? "bg-white text-blue-700 shadow"
+                          : "text-white hover:bg-blue-700/80"
                       )
                     }
                   >
@@ -355,7 +509,7 @@ export default function PropertySettings() {
                     </div>
                   </Tab>
                 </Tab.List>
-                
+
                 <Tab.Panels className="mt-2">
                   {/* Basic Property Information */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
@@ -366,11 +520,15 @@ export default function PropertySettings() {
                         </label>
                         <input
                           type="text"
-                          {...register("name", { required: "Property name is required" })}
+                          {...register("name", {
+                            required: "Property name is required",
+                          })}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         />
                         {errors.name && (
-                          <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.name.message}
+                          </p>
                         )}
                       </div>
 
@@ -480,7 +638,7 @@ export default function PropertySettings() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
-                      
+
                       <div className="col-span-1 md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Description
@@ -493,12 +651,97 @@ export default function PropertySettings() {
                         ></textarea>
                       </div>
                     </div>
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={saveBasicInfo}
+                        disabled={isSavingBasic}
+                        className={`
+                          flex items-center px-4 py-2 rounded-md shadow-sm
+                          ${isSavingBasic ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          text-white font-medium text-sm
+                        `}
+                      >
+                        {isSavingBasic ? (
+                          <span className="flex items-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Basic Info
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <div className="col-span-1 md:col-span-2 mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={saveBasicInfo}
+                        disabled={isSavingBasic}
+                        className={`flex items-center px-4 py-2 rounded-md shadow-sm
+                          ${isSavingBasic ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          text-white font-medium text-sm`}
+                      >
+                        {isSavingBasic ? (
+                          <span className="flex items-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Basic Info
+                          </span>
+                        )}
+                      </button>
+                    </div>
                   </Tab.Panel>
-                
+
                   {/* Visual Assets */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
                     <div>
-                      <h3 className="text-lg font-medium mb-4">Main Property Photo</h3>
+                      <h3 className="text-lg font-medium mb-4">
+                        Main Property Photo
+                      </h3>
                       <div className="mb-6">
                         <div className="border rounded-lg overflow-hidden bg-gray-50">
                           <div className="relative h-64 w-full mb-4">
@@ -511,36 +754,45 @@ export default function PropertySettings() {
                               />
                             ) : (
                               <div className="flex items-center justify-center h-full">
-                                <p className="text-gray-400">No main photo uploaded yet</p>
+                                <p className="text-gray-400">
+                                  No main photo uploaded yet
+                                </p>
                               </div>
                             )}
-                            
+
                             {/* Upload progress indicator */}
                             {isUploading && (
                               <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center">
                                 <div className="w-64 bg-gray-200 rounded-full h-2.5 mb-4">
-                                  <div 
+                                  <div
                                     className={`bg-blue-600 h-2.5 rounded-full transition-all duration-150 ${
-                                      uploadProgress < 25 ? 'w-1/4' : 
-                                      uploadProgress < 50 ? 'w-2/4' : 
-                                      uploadProgress < 75 ? 'w-3/4' : 'w-full'
+                                      uploadProgress < 25
+                                        ? "w-1/4"
+                                        : uploadProgress < 50
+                                        ? "w-2/4"
+                                        : uploadProgress < 75
+                                        ? "w-3/4"
+                                        : "w-full"
                                     }`}
                                     aria-valuenow={uploadProgress}
-                                    aria-valuemin={0}
-                                    aria-valuemax={100}
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                    aria-label="Upload progress indicator"
                                     role="progressbar"
                                   ></div>
                                 </div>
-                                <p className="text-white">Uploading... {uploadProgress}%</p>
+                                <p className="text-white">
+                                  Uploading... {uploadProgress}%
+                                </p>
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="p-4 flex justify-end">
                             <label className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md cursor-pointer">
                               <Upload className="h-4 w-4 mr-2" />
                               Upload New Photo
-                              <input 
+                              <input
                                 type="file"
                                 accept="image/jpeg, image/png, image/webp"
                                 onChange={handleImageUpload}
@@ -550,19 +802,23 @@ export default function PropertySettings() {
                           </div>
                         </div>
                       </div>
-                      
-                      <h3 className="text-lg font-medium mb-4">Additional Property Photos</h3>
+
+                      <h3 className="text-lg font-medium mb-4">
+                        Additional Property Photos
+                      </h3>
                       <p className="text-gray-500 mb-4">
-                        Feature coming soon: Upload multiple images for your property gallery.
+                        Feature coming soon: Upload multiple images for your
+                        property gallery.
                       </p>
-                      
+
                       <h3 className="text-lg font-medium mb-4">Floor Plan</h3>
                       <p className="text-gray-500 mb-4">
-                        Feature coming soon: Upload floor plans of your property.
+                        Feature coming soon: Upload floor plans of your
+                        property.
                       </p>
                     </div>
                   </Tab.Panel>
-                  
+
                   {/* Property Details */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -595,10 +851,12 @@ export default function PropertySettings() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Check-in/Check-out Instructions */}
                       <div className="col-span-1 md:col-span-2 border-b pb-4 mb-4">
-                        <h3 className="text-lg font-medium mb-4">Check-in/Check-out</h3>
+                        <h3 className="text-lg font-medium mb-4">
+                          Check-in/Check-out
+                        </h3>
                         <div className="grid grid-cols-1 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -624,10 +882,12 @@ export default function PropertySettings() {
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* House Rules */}
                       <div className="col-span-1 md:col-span-2 border-b pb-4 mb-4">
-                        <h3 className="text-lg font-medium mb-4">House Rules</h3>
+                        <h3 className="text-lg font-medium mb-4">
+                          House Rules
+                        </h3>
                         <textarea
                           {...register("house_rules")}
                           rows={4}
@@ -635,7 +895,7 @@ export default function PropertySettings() {
                           placeholder="List your house rules here..."
                         ></textarea>
                       </div>
-                      
+
                       {/* Security & Parking */}
                       <div>
                         <h3 className="text-lg font-medium mb-4 flex items-center">
@@ -649,7 +909,7 @@ export default function PropertySettings() {
                           placeholder="Alarm codes, emergency contacts, etc..."
                         ></textarea>
                       </div>
-                      
+
                       <div>
                         <h3 className="text-lg font-medium mb-4 flex items-center">
                           <Car className="h-5 w-5 mr-2 text-blue-500" />
@@ -662,7 +922,7 @@ export default function PropertySettings() {
                           placeholder="Parking instructions and regulations..."
                         ></textarea>
                       </div>
-                      
+
                       {/* Amenities */}
                       <div className="col-span-1 md:col-span-2">
                         <h3 className="text-lg font-medium mb-4">Amenities</h3>
@@ -686,14 +946,99 @@ export default function PropertySettings() {
                         </div>
                       </div>
                     </div>
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={savePropertyDetails}
+                        disabled={isSavingDetails}
+                        className={`
+                          flex items-center px-4 py-2 rounded-md shadow-sm
+                          ${isSavingDetails ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          text-white font-medium text-sm
+                        `}
+                      >
+                        {isSavingDetails ? (
+                          <span className="flex items-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Property Details
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <div className="col-span-1 md:col-span-2 mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={savePropertyDetails}
+                        disabled={isSavingDetails}
+                        className={`flex items-center px-4 py-2 rounded-md shadow-sm
+                          ${isSavingDetails ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          text-white font-medium text-sm`}
+                      >
+                        {isSavingDetails ? (
+                          <span className="flex items-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Property Details
+                          </span>
+                        )}
+                      </button>
+                    </div>
                   </Tab.Panel>
-                  
+
                   {/* Location & Area */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* Map Coordinates */}
                       <div className="col-span-1 md:col-span-2 mb-4">
-                        <h3 className="text-lg font-medium mb-4">Map Location</h3>
+                        <h3 className="text-lg font-medium mb-4">
+                          Map Location
+                        </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -718,16 +1063,20 @@ export default function PropertySettings() {
                             />
                           </div>
                         </div>
-                        
+
                         {/* Map Preview Placeholder */}
                         <div className="mt-4 bg-gray-100 border rounded-lg h-64 flex items-center justify-center">
-                          <p className="text-gray-500">Map preview coming soon</p>
+                          <p className="text-gray-500">
+                            Map preview coming soon
+                          </p>
                         </div>
                       </div>
-                      
+
                       {/* Neighborhood Description */}
                       <div className="col-span-1 md:col-span-2">
-                        <h3 className="text-lg font-medium mb-4">Neighborhood</h3>
+                        <h3 className="text-lg font-medium mb-4">
+                          Neighborhood
+                        </h3>
                         <textarea
                           {...register("neighborhood_description")}
                           rows={4}
@@ -735,6 +1084,89 @@ export default function PropertySettings() {
                           placeholder="Describe the neighborhood, nearby attractions, etc..."
                         ></textarea>
                       </div>
+                    </div>
+                    <div className="flex justify-end mt-4">
+                      <button
+                        onClick={saveLocation}
+                        disabled={isSavingLocation}
+                        className={`
+                          flex items-center px-4 py-2 rounded-md shadow-sm
+                          ${isSavingLocation ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          text-white font-medium text-sm
+                        `}
+                      >
+                        {isSavingLocation ? (
+                          <span className="flex items-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Location
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                    <div className="col-span-1 md:col-span-2 mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={saveLocation}
+                        disabled={isSavingLocation}
+                        className={`flex items-center px-4 py-2 rounded-md shadow-sm
+                          ${isSavingLocation ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          text-white font-medium text-sm`}
+                      >
+                        {isSavingLocation ? (
+                          <span className="flex items-center">
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Location Info
+                          </span>
+                        )}
+                      </button>
                     </div>
                   </Tab.Panel>
                 </Tab.Panels>

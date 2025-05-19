@@ -51,3 +51,16 @@ export const exploreTableSchema = async (tableName: string) => {
     return null;
   }
 };
+
+// Create a storage bucket for property images
+export async function createStorageBuckets() {
+  const { data, error } = await supabase.storage.createBucket('properties', {
+    public: true,
+    fileSizeLimit: 10485760, // 10MB limit
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
+  });
+  
+  if (error) {
+    console.error('Error creating storage bucket:', error);
+  }
+}

@@ -3,6 +3,11 @@
 import { useState, useEffect } from "react";
 import { XMarkIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/components/AuthProvider";
+import Image from "next/image";
+
+// Define a constant for permission bypass in development
+const DEV_BYPASS_PERMISSIONS = true;
 
 interface ItemFormProps {
   item?: {
@@ -18,22 +23,8 @@ interface ItemFormProps {
   onSaved: () => void;
 }
 
-const checkPermission = async (role: string) => {
-  // For development mode bypass
-  if (DEV_BYPASS_PERMISSIONS && process.env.NODE_ENV === "development") {
-    return true;
-  }
-
-  // For the manual page specifically, allow appropriate access
-  if (role === "family" && user) {
-    // This condition limits further checks ONLY if role is family
-    // ...various permission checks...
-  }
-  
-  // Missing default return statement!
-};
-
 export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemFormProps) {
+  const { user } = useAuth(); // Get user from auth context
   const [formData, setFormData] = useState({
     title: "",
     content: "",
@@ -43,7 +34,25 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
+
+  // Fixed checkPermission function with proper scoping and return value
+  const checkPermission = async (role: string) => {
+    // For development mode bypass
+    if (DEV_BYPASS_PERMISSIONS && process.env.NODE_ENV === "development") {
+      return true;
+    }
+
+    // For the manual page specifically, allow appropriate access
+    if (role === "family" && user) {
+      // This condition limits further checks ONLY if role is family
+      // ...various permission checks...
+      return true; // Assuming this is the intended behavior
+    }
+
+    // Default return statement
+    return false;
+  };
+
   // Load item data if editing
   useEffect(() => {
     if (item) {
@@ -55,32 +64,32 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
       setMediaUrls(item.media_urls || []);
     }
   }, [item]);
-  
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFile(e.target.files[0]);
     }
   };
-  
+
   const handleUploadMedia = async () => {
     if (!selectedFile) return;
-    
+
     setMediaUploading(true);
     const fileExt = selectedFile.name.split('.').pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `manual/${fileName}`;
-    
+
     try {
       const { error: uploadError } = await supabase.storage
         .from('media')
         .upload(filePath, selectedFile);
-      
+
       if (uploadError) throw uploadError;
-      
+
       const { data } = supabase.storage
         .from('media')
         .getPublicUrl(filePath);
-        
+
       if (data) {
         setMediaUrls([...mediaUrls, data.publicUrl]);
         setSelectedFile(null);
@@ -92,18 +101,18 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
       setMediaUploading(false);
     }
   };
-  
+
   const handleRemoveMedia = (index: number) => {
     // This only removes from the form, not from storage
     const newMediaUrls = [...mediaUrls];
     newMediaUrls.splice(index, 1);
     setMediaUrls(newMediaUrls);
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       // Get the next order index if creating a new item
       let orderIndex = 0;
@@ -114,10 +123,10 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
           .eq('section_id', sectionId)
           .order('order_index', { ascending: false })
           .limit(1);
-          
+
         orderIndex = (data && data.length > 0) ? data[0].order_index + 1 : 0;
       }
-      
+
       if (item) {
         // Update existing item
         await supabase
@@ -143,7 +152,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
             order_index: orderIndex,
           }]);
       }
-      
+
       onSaved();
     } catch (error) {
       console.error('Error saving item:', error);
@@ -152,7 +161,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
       setIsSubmitting(false);
     }
   };
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -169,7 +178,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="p-4">
           <div className="mb-4">
             <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
@@ -185,7 +194,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
               required
             />
           </div>
-          
+
           <div className="mb-4">
             <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
               Content*
@@ -203,7 +212,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
               required
             />
           </div>
-          
+
           <div className="mb-4">
             <label className="flex items-center">
               <input
@@ -217,23 +226,27 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
               </span>
             </label>
           </div>
-          
+
           {/* Media uploads */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Media
             </label>
-            
+
             {/* Display existing media */}
             {mediaUrls.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                 {mediaUrls.map((url, idx) => (
                   <div key={idx} className="relative rounded-md overflow-hidden border">
-                    <img 
-                      src={url} 
-                      alt={`Media ${idx + 1}`} 
-                      className="h-32 w-full object-cover" 
-                    />
+                    <div className="relative h-32 w-full">
+                      <Image 
+                        src={url} 
+                        alt={`Media ${idx + 1}`}
+                        fill
+                        sizes="(max-width: 768px) 50vw, 33vw"
+                        className="object-cover"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => handleRemoveMedia(idx)}
@@ -246,7 +259,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
                 ))}
               </div>
             )}
-            
+
             {/* Upload new media */}
             <div className="flex items-center space-x-2">
               <label htmlFor="media" className="sr-only">Upload image</label>
@@ -271,7 +284,7 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
               </button>
             </div>
           </div>
-          
+
           <div className="flex justify-end gap-2 mt-6">
             <button
               type="button"

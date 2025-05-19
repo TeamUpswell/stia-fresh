@@ -1,10 +1,36 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { UserIcon, ClockIcon, TagIcon, XIcon } from "lucide-react";
+import { UserIcon, ClockIcon, TagIcon, X } from "lucide-react";
 
-export default function TaskDetail({ task, onClose, onUpdate, currentUser }) {
+// Define proper types
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  due_date: string | null;
+  category: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  assigned_to?: string;
+  created_by: string;
+}
+
+interface User {
+  id: string;
+  isAdmin?: boolean;
+  isManager?: boolean;
+}
+
+interface TaskDetailProps {
+  task: Task;
+  onClose: () => void;
+  onUpdate: (task: Task) => void;
+  currentUser: User;
+}
+
+export default function TaskDetail({ task, onClose, onUpdate, currentUser }: TaskDetailProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedTask, setEditedTask] = useState(task);
+  const [editedTask, setEditedTask] = useState<Task>(task);
   
   const handleUpdate = async () => {
     try {
@@ -29,7 +55,7 @@ export default function TaskDetail({ task, onClose, onUpdate, currentUser }) {
     }
   };
   
-  const formatDate = (dateString) => {
+  const formatDate = (dateString: string | null) => {
     if (!dateString) return "No due date";
     return new Date(dateString).toLocaleDateString();
   };
@@ -40,16 +66,23 @@ export default function TaskDetail({ task, onClose, onUpdate, currentUser }) {
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="flex justify-between items-start mb-4">
         <h2 className="text-xl font-semibold">{task.title}</h2>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-          <XIcon className="h-5 w-5" />
+        <button 
+          onClick={onClose} 
+          className="text-gray-500 hover:text-gray-700"
+          aria-label="Close task details"
+        >
+          <X className="h-5 w-5" />
         </button>
       </div>
       
       {isEditing ? (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
+              Title
+            </label>
             <input
+              id="task-title"
               type="text"
               className="w-full border border-gray-300 rounded-md px-3 py-2"
               value={editedTask.title}
@@ -58,8 +91,11 @@ export default function TaskDetail({ task, onClose, onUpdate, currentUser }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
             <textarea
+              id="task-description"
               className="w-full border border-gray-300 rounded-md px-3 py-2"
               rows={4}
               value={editedTask.description}
@@ -69,11 +105,14 @@ export default function TaskDetail({ task, onClose, onUpdate, currentUser }) {
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
+                Priority
+              </label>
               <select
+                id="task-priority"
                 className="w-full border border-gray-300 rounded-md px-3 py-2"
                 value={editedTask.priority}
-                onChange={(e) => setEditedTask({...editedTask, priority: e.target.value})}
+                onChange={(e) => setEditedTask({...editedTask, priority: e.target.value as 'low' | 'medium' | 'high'})}
               >
                 <option value="low">Low</option>
                 <option value="medium">Medium</option>
@@ -82,8 +121,11 @@ export default function TaskDetail({ task, onClose, onUpdate, currentUser }) {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+              <label htmlFor="task-due-date" className="block text-sm font-medium text-gray-700 mb-1">
+                Due Date
+              </label>
               <input
+                id="task-due-date"
                 type="date"
                 className="w-full border border-gray-300 rounded-md px-3 py-2"
                 value={editedTask.due_date || ""}

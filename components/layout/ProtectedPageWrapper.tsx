@@ -4,42 +4,23 @@ import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 
-// DEVELOPMENT ONLY
-const BYPASS_AUTH = false; // Change to false to restore auth
-
 export default function ProtectedPageWrapper({
   children,
-  requiresAuth = true,
+  requiredRole,
 }: {
   children: ReactNode;
-  requiresAuth?: boolean;
+  requiredRole?: string;
 }) {
-  // COMPLETELY bypass all auth logic in development
-  if (BYPASS_AUTH) {
-    console.log("🔓 Auth bypassed for development");
-    return <>{children}</>;
-  }
-
-  // Only run this code when not bypassing
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, hasPermission } = useAuth();
 
   useEffect(() => {
-    if (!loading && !user && requiresAuth) {
-      console.log("🔒 Not authenticated, redirecting to auth");
-      
-      // FIXED: Only redirect if not already on auth page
-      if (window.location.pathname !== '/auth') {
-        router.push('/auth');
-      }
+    if (!user) {
+      router.push('/login');
+    } else if (requiredRole && !hasPermission(requiredRole)) {
+      router.push('/unauthorized');
     }
-  }, [user, loading, router, requiresAuth]);
+  }, [user, hasPermission, requiredRole, router]);
 
-  if (loading) {
-    return <div className="flex justify-center items-center h-full">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-    </div>;
-  }
-
-  return <>{children}</>;
+  return user ? <>{children}</> : null;
 }

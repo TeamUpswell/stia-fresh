@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth, User } from "@/components/AuthProvider";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import ProfileForm from "@/components/features/settings/ProfileForm";
 import PasswordForm from "@/components/features/settings/PasswordForm";
 import { UserIcon, KeyIcon } from "@heroicons/react/24/outline";
+
+interface User {
+  id: string;
+  email?: string;
+  // add other properties as needed
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -19,13 +25,8 @@ export default function SettingsPage() {
   });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user) {
-      fetchUserProfile();
-    }
-  }, [user]);
-
-  const fetchUserProfile = async () => {
+  // Memoize fetchUserProfile with useCallback
+  const fetchUserProfile = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -50,7 +51,14 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, profile, setLoading, setProfile]);
+
+  // Add fetchUserProfile to the dependency array
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user, fetchUserProfile]);
 
   return (
     <ProtectedPageWrapper>

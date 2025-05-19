@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Image from 'next/image';
 
 export default function ApiTestPage() {
   const [placeId, setPlaceId] = useState('ChIJN1t_tDeuEmsRUsoyG83frY4'); // Example Google HQ place ID
@@ -79,10 +80,14 @@ export default function ApiTestPage() {
       {photoUrl && (
         <div>
           <h2 className="font-bold mb-2">Image Preview:</h2>
-          <img 
-            src={photoUrl} 
-            alt="Place" 
+          <Image 
+            src={photoUrl}
+            alt="Place"
+            width={600}
+            height={400}
+            unoptimized
             className="max-w-full h-auto max-h-96 border rounded-md"
+            style={{ objectFit: 'contain' }}
           />
         </div>
       )}

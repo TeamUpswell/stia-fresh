@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +8,7 @@ import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import styles from "./calendar.module.css";
 import { PlusCircle } from "lucide-react";
+import { getMainProperty } from "@/lib/propertyService";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -61,14 +62,9 @@ export default function ReservationCalendar() {
     status: "pending",
     allDay: true,
   });
+  const [property, setProperty] = useState(null);
 
-  useEffect(() => {
-    if (user) {
-      fetchReservations();
-    }
-  }, [user]);
-
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
@@ -101,7 +97,26 @@ export default function ReservationCalendar() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchReservations();
+    }
+  }, [user, fetchReservations]);
+
+  useEffect(() => {
+    async function loadPropertyData() {
+      try {
+        const propertyData = await getMainProperty();
+        setProperty(propertyData);
+      } catch (error) {
+        console.error("Error loading property:", error);
+      }
+    }
+    
+    loadPropertyData();
+  }, []);
 
   const handleReservationSelect = (reservation: Reservation) => {
     setSelectedReservation(reservation);
@@ -209,9 +224,7 @@ export default function ReservationCalendar() {
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
         <header className="mb-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              House Reservations
-            </h1>
+            {property && <h1 className="text-2xl font-bold mb-4">{property.name} Availability</h1>}
             <button
               onClick={() =>
                 handleSlotSelect({

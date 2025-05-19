@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useProperty } from "@/components/PropertyContext"; // Add this import
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import PermissionGate from "@/components/PermissionGate";
 import { supabase } from "@/lib/supabase";
-import { Tab } from "@headlessui/react";
 import { 
   ChevronDown, ChevronRight, Edit, Plus, Trash2, Save, X,
   Wifi, Car, Shield, Info, Home, MapPin, Clock, Book
@@ -32,27 +32,9 @@ interface ManualItem {
   created_at?: string;
 }
 
-interface PropertyInfo {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  description: string;
-  neighborhood_description: string;
-  wifi_name: string;
-  wifi_password: string;
-  check_in_instructions: string;
-  check_out_instructions: string;
-  house_rules: string;
-  security_info: string;
-  parking_info: string;
-}
-
 export default function ManualAdminPage() {
   const { user, hasPermission } = useAuth();
-  const [property, setProperty] = useState<PropertyInfo | null>(null);
+  const { property, loading: propertyLoading } = useProperty(); // Use the property context
   const [sections, setSections] = useState<ManualSection[]>([]);
   const [items, setItems] = useState<ManualItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,19 +44,20 @@ export default function ManualAdminPage() {
   // Add state for editing custom content
   const [editingSection, setEditingSection] = useState<ManualSection | null>(null);
   const [editingItem, setEditingItem] = useState<ManualItem | null>(null);
+
+  // Helper function to check roles
+  const checkRole = (roles: string | string[]) => {
+    if (Array.isArray(roles)) {
+      return roles.some(role => hasPermission(role));
+    }
+    return hasPermission(roles);
+  };
   
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
       try {
-        // Fetch property info
-        const { data: propertyData, error: propertyError } = await supabase
-          .from("properties")
-          .select("*")
-          .single();
-          
-        if (propertyError) throw propertyError;
-        setProperty(propertyData);
+        // No need to fetch property data - it comes from context now
         
         // Fetch manual sections
         const { data: sectionsData, error: sectionsError } = await supabase
@@ -161,7 +144,7 @@ export default function ManualAdminPage() {
           <h1 className="text-2xl font-bold">House Manual</h1>
           
           {/* Admin controls */}
-          {hasPermission(["owner", "manager"]) && (
+          {checkRole(["owner", "manager"]) && (
             <button
               onClick={() => setEditMode(!editMode)}
               className={`
@@ -185,7 +168,7 @@ export default function ManualAdminPage() {
           )}
         </div>
         
-        {loading ? (
+        {loading || propertyLoading ? (
           <div className="flex justify-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
@@ -265,7 +248,7 @@ export default function ManualAdminPage() {
                   ))}
                   
                   {/* Add Section button (admin only) */}
-                  {editMode && hasPermission(["owner", "manager"]) && (
+                  {editMode && checkRole(["owner", "manager"]) && (
                     <button 
                       className="w-full py-2.5 text-left text-sm leading-5 rounded-md
                                 text-blue-600 hover:bg-blue-50 flex items-center"
@@ -291,10 +274,12 @@ export default function ManualAdminPage() {
                           <Home size={20} className="mr-2" />
                           {property?.name || "Property Information"}
                           
-                          {editMode && hasPermission(["owner", "manager"]) && (
+                          {editMode && checkRole(["owner", "manager"]) && (
                             <button 
                               className="ml-2 text-gray-400 hover:text-blue-600"
                               onClick={() => {/* Navigate to property settings */}}
+                              aria-label="Edit property information"
+                              title="Edit property information"
                             >
                               <Edit size={16} />
                             </button>
@@ -333,10 +318,12 @@ export default function ManualAdminPage() {
                           <Clock size={20} className="mr-2" />
                           Check-in & Check-out Instructions
                           
-                          {editMode && hasPermission(["owner", "manager"]) && (
+                          {editMode && checkRole(["owner", "manager"]) && (
                             <button 
                               className="ml-2 text-gray-400 hover:text-blue-600"
                               onClick={() => {/* Navigate to property settings */}}
+                              aria-label="Edit check-in instructions"
+                              title="Edit check-in instructions"
                             >
                               <Edit size={16} />
                             </button>
@@ -374,10 +361,12 @@ export default function ManualAdminPage() {
                         <Info size={20} className="mr-2" />
                         Practical Information
                         
-                        {editMode && hasPermission(["owner", "manager"]) && (
+                        {editMode && checkRole(["owner", "manager"]) && (
                           <button 
                             className="ml-2 text-gray-400 hover:text-blue-600"
                             onClick={() => {/* Navigate to property settings */}}
+                            aria-label="Edit practical information"
+                            title="Edit practical information"
                           >
                             <Edit size={16} />
                           </button>
@@ -425,23 +414,29 @@ export default function ManualAdminPage() {
                             {section.title}
                           </h2>
                           
-                          {editMode && hasPermission(["owner", "manager"]) && (
+                          {editMode && checkRole(["owner", "manager"]) && (
                             <div className="flex gap-2">
                               <button 
                                 className="text-gray-400 hover:text-blue-600"
                                 onClick={() => setEditingSection(section)}
+                                aria-label={`Edit ${section.title} section`}
+                                title={`Edit ${section.title} section`}
                               >
                                 <Edit size={16} />
                               </button>
                               <button 
                                 className="text-gray-400 hover:text-red-600"
                                 onClick={() => {/* Delete section */}}
+                                aria-label={`Delete ${section.title} section`}
+                                title={`Delete ${section.title} section`}
                               >
                                 <Trash2 size={16} />
                               </button>
                               <button 
                                 className="text-gray-400 hover:text-green-600"
                                 onClick={() => {/* Add item to this section */}}
+                                aria-label={`Add item to ${section.title} section`}
+                                title={`Add item to ${section.title} section`}
                               >
                                 <Plus size={16} />
                               </button>
@@ -462,17 +457,21 @@ export default function ManualAdminPage() {
                               <div className="flex justify-between items-center mb-2">
                                 <h3 className="font-medium text-gray-900">{item.title}</h3>
                                 
-                                {editMode && hasPermission(["owner", "manager"]) && (
+                                {editMode && checkRole(["owner", "manager"]) && (
                                   <div className="flex gap-2">
                                     <button 
                                       className="text-gray-400 hover:text-blue-600"
                                       onClick={() => setEditingItem(item)}
+                                      aria-label={`Edit ${item.title}`}
+                                      title={`Edit ${item.title}`}
                                     >
                                       <Edit size={16} />
                                     </button>
                                     <button 
                                       className="text-gray-400 hover:text-red-600"
                                       onClick={() => {/* Delete item */}}
+                                      aria-label={`Delete ${item.title}`}
+                                      title={`Delete ${item.title}`}
                                     >
                                       <Trash2 size={16} />
                                     </button>

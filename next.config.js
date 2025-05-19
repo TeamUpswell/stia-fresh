@@ -2,11 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: [
-      // Your Supabase storage domain
-      'hkrgfqpshdoroimlulzw.supabase.co',
-      // Add any other image domains you need
-    ],
+    domains: ["hkrgfqpshdoroimlulzw.supabase.co", "maps.googleapis.com"],
+  },
+  async redirects() {
+    return [];
+  },
+  async rewrites() {
+    return [];
   },
 };
 
