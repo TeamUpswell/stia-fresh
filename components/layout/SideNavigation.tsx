@@ -15,8 +15,10 @@ import {
   Settings as CogIcon,
   ChevronRight,
   FileText as DocumentTextIcon,
+  Sun,
+  Moon,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 
 // Define interfaces for navigation items
@@ -89,6 +91,40 @@ export default function SideNavigation({ user }: SideNavigationProps) {
     Admin: false,
   });
 
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Load theme preference from localStorage on mount
+  useEffect(() => {
+    // Check for saved preference
+    const savedTheme = localStorage.getItem("theme");
+
+    // Check system preference if no saved preference
+    if (!savedTheme) {
+      const prefersDark = window.matchMedia(
+        "(prefers-color-scheme: dark)"
+      ).matches;
+      setIsDarkMode(prefersDark);
+      return;
+    }
+
+    setIsDarkMode(savedTheme === "dark");
+  }, []);
+
+  // Update body class and localStorage when theme changes
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDarkMode]);
+
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
   const toggleCategory = (category: string) => {
     setExpandedCategories({
       ...expandedCategories,
@@ -97,11 +133,21 @@ export default function SideNavigation({ user }: SideNavigationProps) {
   };
 
   return (
-    <aside className="bg-white w-64 min-h-screen border-r border-gray-200 flex-shrink-0 flex flex-col overflow-y-auto">
+    <aside
+      className={`${
+        isDarkMode ? "bg-gray-900" : "bg-white"
+      } w-64 min-h-screen border-r ${
+        isDarkMode ? "border-gray-700" : "border-gray-200"
+      } flex-shrink-0 flex flex-col overflow-y-auto transition-colors duration-200`}
+    >
       {/* Header/Logo - Centered */}
-      <div className="p-4 border-b border-gray-200 flex items-center justify-center">
+      <div
+        className={`p-4 border-b ${
+          isDarkMode ? "border-gray-700" : "border-gray-200"
+        } flex items-center justify-center transition-colors duration-200`}
+      >
         <Image
-          src="/branding/logo.svg"  
+          src={isDarkMode ? "/branding/logo-dark.svg" : "/branding/logo.svg"}
           alt="Stia"
           width={100}
           height={32}
@@ -119,7 +165,11 @@ export default function SideNavigation({ user }: SideNavigationProps) {
               {/* Category Header - Updated Style */}
               <button
                 onClick={() => toggleCategory(section.category)}
-                className="w-full flex items-center justify-between text-left text-sm font-medium text-gray-600 hover:text-gray-900 mb-1"
+                className={`w-full flex items-center justify-between text-left text-sm font-medium ${
+                  isDarkMode
+                    ? "text-gray-300 hover:text-white"
+                    : "text-gray-600 hover:text-gray-900"
+                } mb-1 transition-colors duration-200`}
               >
                 <span>{section.category}</span>
                 <ChevronRight
@@ -149,10 +199,14 @@ export default function SideNavigation({ user }: SideNavigationProps) {
                         key={item.name}
                         href={item.href}
                         className={`
-                          group flex items-center px-2 py-2 text-sm font-medium rounded-md
+                          group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors duration-200
                           ${
                             isActive
-                              ? "bg-gray-100 text-gray-900"
+                              ? isDarkMode
+                                ? "bg-gray-800 text-white"
+                                : "bg-gray-100 text-gray-900"
+                              : isDarkMode
+                              ? "text-gray-300 hover:bg-gray-800 hover:text-white"
                               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                           }
                         `}
@@ -176,6 +230,29 @@ export default function SideNavigation({ user }: SideNavigationProps) {
             </div>
           );
         })}
+      </div>
+
+      {/* Theme Toggle Button */}
+      <div
+        className={`p-4 border-t ${
+          isDarkMode ? "border-gray-700" : "border-gray-200"
+        } flex justify-center transition-colors duration-200`}
+      >
+        <button
+          onClick={toggleTheme}
+          className={`p-2 rounded-md ${
+            isDarkMode
+              ? "bg-gray-700 text-yellow-400 hover:bg-gray-600"
+              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+          } transition-colors duration-200`}
+          aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {isDarkMode ? (
+            <Sun className="h-5 w-5" />
+          ) : (
+            <Moon className="h-5 w-5" />
+          )}
+        </button>
       </div>
     </aside>
   );

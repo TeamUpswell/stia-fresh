@@ -41,6 +41,8 @@ interface PropertyFormData {
   parking_info: string;
   // Amenities (stored as array or JSON)
   amenities: string[];
+  // Add this line to include main_photo_url
+  main_photo_url?: string;
 }
 
 export default function PropertySettings() {
@@ -182,16 +184,21 @@ export default function PropertySettings() {
       const fileName = `property-${Date.now()}.${fileExt}`;
       const filePath = `properties/${fileName}`;
       
-      // Upload to Supabase Storage
+      // Set up a progress tracker using XMLHttpRequest
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      });
+      
+      // Upload to Supabase Storage using standard options
       const { error: uploadError } = await supabase.storage
         .from("properties")
         .upload(filePath, file, {
           cacheControl: "3600",
-          upsert: true,
-          onUploadProgress: (progress) => {
-            const percent = Math.round((progress.loaded / progress.total) * 100);
-            setUploadProgress(percent);
-          },
+          upsert: true
         });
         
       if (uploadError) throw uploadError;
@@ -220,6 +227,7 @@ export default function PropertySettings() {
         main_photo_url: publicUrl
       });
       
+      // Now this will work because we added main_photo_url to the interface
       setValue("main_photo_url", publicUrl);
       toast.success("Property image updated!");
     } catch (error: any) {
@@ -512,8 +520,15 @@ export default function PropertySettings() {
                               <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center">
                                 <div className="w-64 bg-gray-200 rounded-full h-2.5 mb-4">
                                   <div 
-                                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-150"
-                                    style={{width: `${uploadProgress}%`}}
+                                    className={`bg-blue-600 h-2.5 rounded-full transition-all duration-150 ${
+                                      uploadProgress < 25 ? 'w-1/4' : 
+                                      uploadProgress < 50 ? 'w-2/4' : 
+                                      uploadProgress < 75 ? 'w-3/4' : 'w-full'
+                                    }`}
+                                    aria-valuenow={uploadProgress}
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    role="progressbar"
                                   ></div>
                                 </div>
                                 <p className="text-white">Uploading... {uploadProgress}%</p>

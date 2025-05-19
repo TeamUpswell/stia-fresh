@@ -20,6 +20,7 @@ import {
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 import PlaceSearch from "@/components/PlaceSearch";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 interface Coordinates {
   lat: number;
@@ -50,6 +51,28 @@ interface RecommendationNote {
   created_at: string;
   user_name?: string;
   user_avatar?: string;
+}
+
+interface GooglePlace {
+  name?: string;
+  types?: string[];
+  formatted_address?: string;
+  editorial_summary?: {
+    overview?: string;
+  };
+  website?: string;
+  formatted_phone_number?: string;
+  rating?: number;
+  place_id?: string;
+  photos?: {
+    getUrl: (options: { maxWidth: number; maxHeight: number }) => string;
+  }[];
+  geometry?: {
+    location: {
+      lat: () => number;
+      lng: () => number;
+    };
+  };
 }
 
 export default function RecommendationsPage() {
@@ -141,10 +164,14 @@ export default function RecommendationsPage() {
             groupedNotes[note.recommendation_id] = [];
           }
 
+          const profile = Array.isArray(note.profiles)
+            ? note.profiles[0]
+            : note.profiles;
+
           const formattedNote = {
             ...note,
-            user_name: note.profiles?.full_name || "Anonymous User",
-            user_avatar: note.profiles?.avatar_url,
+            user_name: profile?.full_name || "Anonymous User",
+            user_avatar: profile?.avatar_url,
           };
 
           groupedNotes[note.recommendation_id].push(formattedNote);
@@ -371,23 +398,34 @@ export default function RecommendationsPage() {
 
       // Update the notes directly in state
       if (newNote && newNote.length > 0) {
-        const formattedNote = {
-          ...newNote[0],
-          user_name:
-            newNote[0].profiles?.full_name ||
-            user.user_metadata?.full_name ||
-            "Anonymous User",
-          user_avatar:
-            newNote[0].profiles?.avatar_url || user.user_metadata?.avatar_url,
-        };
+        // Add more defensive code to prevent crashes
+        try {
+          const profiles = newNote[0].profiles;
+          let profile = null;
 
-        setNotes((prevNotes) => ({
-          ...prevNotes,
-          [recommendationId]: [
-            formattedNote,
-            ...(prevNotes[recommendationId] || []),
-          ],
-        }));
+          // Handle all possible data shapes
+          if (profiles) {
+            profile = Array.isArray(profiles) ? profiles[0] : profiles;
+          }
+
+          const formattedNote = {
+            ...newNote[0],
+            user_name: profile?.full_name || "Anonymous User",
+            user_avatar: profile?.avatar_url || null,
+          };
+
+          setNotes((prevNotes) => ({
+            ...prevNotes,
+            [recommendationId]: [
+              formattedNote,
+              ...(prevNotes[recommendationId] || []),
+            ],
+          }));
+        } catch (err) {
+          console.error("Error formatting note data:", err);
+          // Still update the UI even if formatting fails
+          toast.success("Note added!");
+        }
       }
 
       toast.success("Note added!");
@@ -397,7 +435,7 @@ export default function RecommendationsPage() {
     }
   };
 
-  const handlePlaceSelect = (place: google.maps.places.PlaceResult) => {
+  const handlePlaceSelect = (place: GooglePlace) => {
     console.log("Selected place:", place);
 
     const newRecommendationData = {
@@ -414,7 +452,15 @@ export default function RecommendationsPage() {
       images: place.photos
         ? place.photos
             .slice(0, 3)
-            .map((photo) => photo.getUrl({ maxWidth: 800, maxHeight: 600 }))
+            .map((photo) => {
+              try {
+                return photo.getUrl({ maxWidth: 800, maxHeight: 600 });
+              } catch (e) {
+                console.error("Error getting photo URL:", e);
+                return ""; // Fallback empty string
+              }
+            })
+            .filter((url) => url !== "") // Remove empty strings
         : [""],
       is_recommended: true,
     };
@@ -512,879 +558,892 @@ export default function RecommendationsPage() {
 
   return (
     <AuthenticatedLayout>
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl font-bold">Local Recommendations</h1>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="flex items-center space-x-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-            >
-              {showAddForm ? (
-                <>
-                  <X size={16} />
-                  <span>Cancel</span>
-                </>
-              ) : (
-                <>
-                  <Plus size={16} />
-                  <span>Add Place</span>
-                </>
-              )}
-            </button>
-          </div>
+      <ErrorBoundary>
+        <div className="container mx-auto py-8 px-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h1 className="text-3xl font-bold">Local Recommendations</h1>
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="flex items-center space-x-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
+              >
+                {showAddForm ? (
+                  <>
+                    <X size={16} />
+                    <span>Cancel</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    <span>Add Place</span>
+                  </>
+                )}
+              </button>
+            </div>
 
-          {showAddForm && (
-            <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-              <h2 className="text-xl font-semibold mb-4">
-                Add New Recommendation
-              </h2>
+            {showAddForm && (
+              <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+                <h2 className="text-xl font-semibold mb-4">
+                  Add New Recommendation
+                </h2>
 
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Search for a place
-                </label>
-                <PlaceSearch
-                  onPlaceSelect={handlePlaceSelect}
-                  placeholder="Search for restaurants, attractions, etc."
-                />
-                <p className="mt-2 text-sm text-gray-500">
-                  Search for a place to automatically fill the details below
-                </p>
-              </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Search for a place
+                  </label>
+                  <PlaceSearch
+                    onPlaceSelect={handlePlaceSelect}
+                    placeholder="Search for restaurants, attractions, etc."
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Search for a place to automatically fill the details below
+                  </p>
+                </div>
 
-              <form onSubmit={handleAddRecommendation} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      htmlFor="new-name"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Name *
-                    </label>
-                    <input
-                      id="new-name"
-                      type="text"
-                      value={newRecommendation.name}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          name: e.target.value,
-                        })
-                      }
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation name"
-                    />
-                  </div>
+                <form onSubmit={handleAddRecommendation} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label
+                        htmlFor="new-name"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Name *
+                      </label>
+                      <input
+                        id="new-name"
+                        type="text"
+                        value={newRecommendation.name}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            name: e.target.value,
+                          })
+                        }
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation name"
+                      />
+                    </div>
 
-                  <div>
-                    <label
-                      htmlFor="new-category"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Category *
-                    </label>
-                    <input
-                      id="new-category"
-                      type="text"
-                      value={newRecommendation.category}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          category: e.target.value,
-                        })
-                      }
-                      required
-                      placeholder="restaurants, activities, shopping, etc."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation category"
-                    />
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="new-category"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Category *
+                      </label>
+                      <input
+                        id="new-category"
+                        type="text"
+                        value={newRecommendation.category}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            category: e.target.value,
+                          })
+                        }
+                        required
+                        placeholder="restaurants, activities, shopping, etc."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation category"
+                      />
+                    </div>
 
-                  <div>
-                    <label
-                      htmlFor="new-address"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Address
-                    </label>
-                    <input
-                      id="new-address"
-                      type="text"
-                      value={newRecommendation.address}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          address: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation address"
-                    />
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="new-address"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Address
+                      </label>
+                      <input
+                        id="new-address"
+                        type="text"
+                        value={newRecommendation.address}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            address: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation address"
+                      />
+                    </div>
 
-                  <div>
-                    <label
-                      htmlFor="new-website"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Website
-                    </label>
-                    <input
-                      id="new-website"
-                      type="url"
-                      value={newRecommendation.website}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          website: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation website"
-                      placeholder="https://example.com"
-                    />
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="new-website"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Website
+                      </label>
+                      <input
+                        id="new-website"
+                        type="url"
+                        value={newRecommendation.website}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            website: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation website"
+                        placeholder="https://example.com"
+                      />
+                    </div>
 
-                  <div>
-                    <label
-                      htmlFor="new-phone"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Phone Number
-                    </label>
-                    <input
-                      id="new-phone"
-                      type="text"
-                      value={newRecommendation.phone_number}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          phone_number: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation phone number"
-                      placeholder="(123) 456-7890"
-                    />
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="new-phone"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Phone Number
+                      </label>
+                      <input
+                        id="new-phone"
+                        type="text"
+                        value={newRecommendation.phone_number}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            phone_number: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation phone number"
+                        placeholder="(123) 456-7890"
+                      />
+                    </div>
 
-                  <div>
-                    <label
-                      htmlFor="new-rating"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Rating (1-5)
-                    </label>
-                    <input
-                      id="new-rating"
-                      type="number"
-                      min="1"
-                      max="5"
-                      step="0.1"
-                      value={newRecommendation.rating}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          rating: parseFloat(e.target.value),
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation rating"
-                    />
-                  </div>
+                    <div>
+                      <label
+                        htmlFor="new-rating"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Rating (1-5)
+                      </label>
+                      <input
+                        id="new-rating"
+                        type="number"
+                        min="1"
+                        max="5"
+                        step="0.1"
+                        value={newRecommendation.rating}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            rating: parseFloat(e.target.value),
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation rating"
+                      />
+                    </div>
 
-                  <div className="md:col-span-2">
-                    <label 
-                      htmlFor="new-description" 
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Description
-                    </label>
-                    <textarea
-                      id="new-description"
-                      value={newRecommendation.description}
-                      onChange={(e) =>
-                        setNewRecommendation({
-                          ...newRecommendation,
-                          description: e.target.value,
-                        })
-                      }
-                      rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      aria-label="Recommendation description"
-                      placeholder="Describe this place and why you're recommending it..."
-                    ></textarea>
-                  </div>
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor="new-description"
+                        className="block text-sm font-medium text-gray-700 mb-1"
+                      >
+                        Description
+                      </label>
+                      <textarea
+                        id="new-description"
+                        value={newRecommendation.description}
+                        onChange={(e) =>
+                          setNewRecommendation({
+                            ...newRecommendation,
+                            description: e.target.value,
+                          })
+                        }
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        aria-label="Recommendation description"
+                        placeholder="Describe this place and why you're recommending it..."
+                      ></textarea>
+                    </div>
 
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Image URL
-                    </label>
-                    {newRecommendation.images.map((image, index) => (
-                      <div key={index} className="flex mb-2">
-                        <input
-                          id={`image-url-${index}`}
-                          type="url"
-                          value={image}
-                          onChange={(e) => {
-                            const newImages = [...newRecommendation.images];
-                            newImages[index] = e.target.value;
-                            setNewRecommendation({
-                              ...newRecommendation,
-                              images: newImages,
-                            });
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          placeholder="https://example.com/image.jpg"
-                          aria-label={`Image URL ${index + 1}`}
-                        />
-                        {index === newRecommendation.images.length - 1 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setNewRecommendation({
-                                ...newRecommendation,
-                                images: [...newRecommendation.images, ""],
-                              })
-                            }
-                            className="ml-2 px-3 py-2 bg-blue-100 text-blue-600 rounded"
-                            aria-label="Add another image URL field"
-                          >
-                            +
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newImages = newRecommendation.images.filter(
-                                (_, i) => i !== index
-                              );
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Image URL
+                      </label>
+                      {newRecommendation.images.map((image, index) => (
+                        <div key={index} className="flex mb-2">
+                          <input
+                            id={`image-url-${index}`}
+                            type="url"
+                            value={image}
+                            onChange={(e) => {
+                              const newImages = [...newRecommendation.images];
+                              newImages[index] = e.target.value;
                               setNewRecommendation({
                                 ...newRecommendation,
                                 images: newImages,
                               });
                             }}
-                            className="ml-2 px-3 py-2 bg-red-100 text-red-600 rounded"
-                            aria-label="Remove this image URL field"
-                          >
-                            -
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            placeholder="https://example.com/image.jpg"
+                            aria-label={`Image URL ${index + 1}`}
+                          />
+                          {index === newRecommendation.images.length - 1 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNewRecommendation({
+                                  ...newRecommendation,
+                                  images: [...newRecommendation.images, ""],
+                                })
+                              }
+                              className="ml-2 px-3 py-2 bg-blue-100 text-blue-600 rounded"
+                              aria-label="Add another image URL field"
+                            >
+                              +
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newImages =
+                                  newRecommendation.images.filter(
+                                    (_, i) => i !== index
+                                  );
+                                setNewRecommendation({
+                                  ...newRecommendation,
+                                  images: newImages,
+                                });
+                              }}
+                              className="ml-2 px-3 py-2 bg-red-100 text-red-600 rounded"
+                              aria-label="Remove this image URL field"
+                            >
+                              -
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex justify-end pt-4">
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Add Recommendation
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {isEditing && editingRecommendation && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Edit Recommendation</h2>
+                  <div className="flex justify-end pt-4">
                     <button
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditingRecommendation(null);
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                      aria-label="Close edit dialog"
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     >
-                      <X size={24} />
+                      Add Recommendation
                     </button>
                   </div>
+                </form>
+              </div>
+            )}
 
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Update with a new place
-                    </label>
-                    <PlaceSearch
-                      onPlaceSelect={handlePlaceSelect}
-                      placeholder="Search for a new place"
-                    />
-                  </div>
-
-                  <form onSubmit={handleSaveEdit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                          <label
-                          htmlFor="edit-name"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Name *
-                        </label>
-                        <input
-                          id="edit-name"
-                          type="text"
-                          value={editingRecommendation.name}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              name: e.target.value,
-                            })
-                          }
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation name"
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="edit-category"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Category *
-                        </label>
-                        <input
-                          id="edit-category"
-                          type="text"
-                          value={editingRecommendation.category}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              category: e.target.value,
-                            })
-                          }
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation category"
-                        />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <label
-                          htmlFor="edit-description"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Description
-                        </label>
-                        <textarea
-                          id="edit-description"
-                          value={editingRecommendation.description || ""}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              description: e.target.value,
-                            })
-                          }
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation description"
-                        ></textarea>
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="edit-address"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Address
-                        </label>
-                        <input
-                          id="edit-address"
-                          type="text"
-                          value={editingRecommendation.address || ""}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              address: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation address"
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="edit-website"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Website
-                        </label>
-                        <input
-                          id="edit-website"
-                          type="url"
-                          value={editingRecommendation.website || ""}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              website: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation website"
-                          placeholder="https://example.com"
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="edit-phone"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Phone Number
-                        </label>
-                        <input
-                          id="edit-phone"
-                          type="text"
-                          value={editingRecommendation.phone_number || ""}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              phone_number: e.target.value,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation phone number"
-                          placeholder="(123) 456-7890"
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          htmlFor="edit-rating"
-                          className="block text-sm font-medium text-gray-700 mb-1"
-                        >
-                          Rating (1-5)
-                        </label>
-                        <input
-                          id="edit-rating"
-                          type="number"
-                          min="1"
-                          max="5"
-                          step="0.1"
-                          value={editingRecommendation.rating || 5}
-                          onChange={(e) =>
-                            setEditingRecommendation({
-                              ...editingRecommendation,
-                              rating: parseFloat(e.target.value) || 5,
-                            })
-                          }
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                          aria-label="Recommendation rating"
-                        />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-3">
-                          Recommendation Status
-                        </label>
-                        <div className="flex gap-4">
-                          <div className="flex items-center">
-                            <input
-                              type="radio"
-                              id="edit-recommended-true"
-                              checked={
-                                editingRecommendation.is_recommended !== false
-                              }
-                              onChange={() =>
-                                setEditingRecommendation({
-                                  ...editingRecommendation,
-                                  is_recommended: true,
-                                })
-                              }
-                              className="h-4 w-4 text-blue-600"
-                              aria-label="Mark as recommended"
-                            />
-                            <label
-                              htmlFor="edit-recommended-true"
-                              className="ml-2 flex items-center gap-1"
-                            >
-                              <ThumbsUp size={16} className="text-green-500" />
-                              Recommended
-                            </label>
-                          </div>
-
-                          <div className="flex items-center">
-                            <input
-                              type="radio"
-                              id="edit-recommended-false"
-                              checked={
-                                editingRecommendation.is_recommended === false
-                              }
-                              onChange={() =>
-                                setEditingRecommendation({
-                                  ...editingRecommendation,
-                                  is_recommended: false,
-                                })
-                              }
-                              className="h-4 w-4 text-blue-600"
-                              aria-label="Mark as not recommended"
-                            />
-                            <label
-                              htmlFor="edit-recommended-false"
-                              className="ml-2 flex items-center gap-1"
-                            >
-                              <ThumbsDown size={16} className="text-red-500" />
-                              Not Recommended
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end pt-4">
+            {isEditing && editingRecommendation && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-bold">Edit Recommendation</h2>
                       <button
-                        type="button"
                         onClick={() => {
                           setIsEditing(false);
                           setEditingRecommendation(null);
                         }}
-                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded mr-2"
+                        className="text-gray-400 hover:text-gray-600"
+                        aria-label="Close edit dialog"
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                      >
-                        Save Changes
+                        <X size={24} />
                       </button>
                     </div>
-                  </form>
-                </div>
-              </div>
-            </div>
-          )}
 
-          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="category-filter"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Filter by Category
-              </label>
-              <div className="relative">
-                <select
-                  id="category-filter"
-                  value={activeCategory}
-                  onChange={(e) => setActiveCategory(e.target.value)}
-                  className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Categories</option>
-                  {categories.map((category) => (
-                    <option
-                      key={category}
-                      value={category}
-                      className="capitalize"
-                    >
-                      {category}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
+                    <div className="mb-6">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Update with a new place
+                      </label>
+                      <PlaceSearch
+                        onPlaceSelect={handlePlaceSelect}
+                        placeholder="Search for a new place"
+                      />
+                    </div>
 
-            <div>
-              <label
-                htmlFor="status-filter"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Filter by Status
-              </label>
-              <div className="relative">
-                <select
-                  id="status-filter"
-                  value={recommendationStatus}
-                  onChange={(e) =>
-                    setRecommendationStatus(
-                      e.target.value as
-                        | "all"
-                        | "recommended"
-                        | "not_recommended"
-                    )
-                  }
-                  className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">All Places</option>
-                  <option value="recommended">Recommended Only</option>
-                  <option value="not_recommended">Not Recommended Only</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <svg
-                    className="h-5 w-5 text-gray-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
+                    <form onSubmit={handleSaveEdit} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label
+                            htmlFor="edit-name"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Name *
+                          </label>
+                          <input
+                            id="edit-name"
+                            type="text"
+                            value={editingRecommendation.name}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                name: e.target.value,
+                              })
+                            }
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation name"
+                          />
+                        </div>
 
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRecommendations.length > 0 ? (
-                filteredRecommendations.map((item) => (
-                  <div
-                    key={item.id}
-                    className={`bg-white rounded-lg shadow-md overflow-hidden relative ${
-                      item.is_recommended === false
-                        ? "border-2 border-red-300"
-                        : ""
-                    }`}
-                  >
-                    {item.is_recommended === false && (
-                      <div className="absolute top-2 left-2 z-10 bg-red-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                        <ThumbsDown size={12} />
-                        Not Recommended
-                      </div>
-                    )}
+                        <div>
+                          <label
+                            htmlFor="edit-category"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Category *
+                          </label>
+                          <input
+                            id="edit-category"
+                            type="text"
+                            value={editingRecommendation.category}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                category: e.target.value,
+                              })
+                            }
+                            required
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation category"
+                          />
+                        </div>
 
-                    {(hasPermission("owner") ||
-                      hasPermission("manager") ||
-                      hasPermission("family")) && (
-                      <button
-                        onClick={() => handleDeleteRecommendation(item.id)}
-                        className="absolute top-2 right-12 bg-red-500/90 hover:bg-red-600 text-white p-1.5 rounded-full z-10"
-                        aria-label="Delete recommendation"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                        <div className="md:col-span-2">
+                          <label
+                            htmlFor="edit-description"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Description
+                          </label>
+                          <textarea
+                            id="edit-description"
+                            value={editingRecommendation.description || ""}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                description: e.target.value,
+                              })
+                            }
+                            rows={3}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation description"
+                          ></textarea>
+                        </div>
 
-                    {(hasPermission("owner") ||
-                      hasPermission("manager") ||
-                      hasPermission("family")) && (
-                      <button
-                        onClick={() =>
-                          toggleRecommendationStatus(
-                            item.id,
-                            item.is_recommended
-                          )
-                        }
-                        className={`absolute top-2 right-24 p-1.5 rounded-full z-10 ${
-                          item.is_recommended !== false
-                            ? "bg-red-500/90 hover:bg-red-600 text-white"
-                            : "bg-green-500/90 hover:bg-green-600 text-white"
-                        }`}
-                        aria-label={
-                          item.is_recommended !== false
-                            ? "Mark as not recommended"
-                            : "Mark as recommended"
-                        }
-                      >
-                        {item.is_recommended !== false ? (
-                          <ThumbsDown size={16} />
-                        ) : (
-                          <ThumbsUp size={16} />
-                        )}
-                      </button>
-                    )}
+                        <div>
+                          <label
+                            htmlFor="edit-address"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Address
+                          </label>
+                          <input
+                            id="edit-address"
+                            type="text"
+                            value={editingRecommendation.address || ""}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                address: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation address"
+                          />
+                        </div>
 
-                    {(hasPermission("owner") ||
-                      hasPermission("manager") ||
-                      hasPermission("family")) && (
-                      <button
-                        onClick={() => handleStartEditing(item)}
-                        className="absolute top-2 right-2 bg-white/90 hover:bg-white text-gray-700 p-1.5 rounded-full z-10"
-                        aria-label="Edit recommendation"
-                      >
-                        <Edit size={16} />
-                      </button>
-                    )}
+                        <div>
+                          <label
+                            htmlFor="edit-website"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Website
+                          </label>
+                          <input
+                            id="edit-website"
+                            type="url"
+                            value={editingRecommendation.website || ""}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                website: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation website"
+                            placeholder="https://example.com"
+                          />
+                        </div>
 
-                    {item.images && item.images.length > 0 ? (
-                      <div
-                        className={`h-48 w-full relative ${
-                          item.is_recommended === false ? "opacity-70" : ""
-                        }`}
-                      >
-                        <img
-                          src={item.images[0]}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-2 left-2 bg-gray-900/70 text-white text-xs px-2 py-1 rounded-full capitalize">
-                          {item.category}
+                        <div>
+                          <label
+                            htmlFor="edit-phone"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Phone Number
+                          </label>
+                          <input
+                            id="edit-phone"
+                            type="text"
+                            value={editingRecommendation.phone_number || ""}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                phone_number: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation phone number"
+                            placeholder="(123) 456-7890"
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="edit-rating"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Rating (1-5)
+                          </label>
+                          <input
+                            id="edit-rating"
+                            type="number"
+                            min="1"
+                            max="5"
+                            step="0.1"
+                            value={editingRecommendation.rating || 5}
+                            onChange={(e) =>
+                              setEditingRecommendation({
+                                ...editingRecommendation,
+                                rating: parseFloat(e.target.value) || 5,
+                              })
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                            aria-label="Recommendation rating"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-3">
+                            Recommendation Status
+                          </label>
+                          <div className="flex gap-4">
+                            <div className="flex items-center">
+                              <input
+                                type="radio"
+                                id="edit-recommended-true"
+                                checked={
+                                  editingRecommendation.is_recommended !== false
+                                }
+                                onChange={() =>
+                                  setEditingRecommendation({
+                                    ...editingRecommendation,
+                                    is_recommended: true,
+                                  })
+                                }
+                                className="h-4 w-4 text-blue-600"
+                                aria-label="Mark as recommended"
+                              />
+                              <label
+                                htmlFor="edit-recommended-true"
+                                className="ml-2 flex items-center gap-1"
+                              >
+                                <ThumbsUp
+                                  size={16}
+                                  className="text-green-500"
+                                />
+                                Recommended
+                              </label>
+                            </div>
+
+                            <div className="flex items-center">
+                              <input
+                                type="radio"
+                                id="edit-recommended-false"
+                                checked={
+                                  editingRecommendation.is_recommended === false
+                                }
+                                onChange={() =>
+                                  setEditingRecommendation({
+                                    ...editingRecommendation,
+                                    is_recommended: false,
+                                  })
+                                }
+                                className="h-4 w-4 text-blue-600"
+                                aria-label="Mark as not recommended"
+                              />
+                              <label
+                                htmlFor="edit-recommended-false"
+                                className="ml-2 flex items-center gap-1"
+                              >
+                                <ThumbsDown
+                                  size={16}
+                                  className="text-red-500"
+                                />
+                                Not Recommended
+                              </label>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    ) : (
-                      <div
-                        className={`h-48 w-full bg-gray-200 flex items-center justify-center ${
-                          item.is_recommended === false ? "opacity-70" : ""
-                        }`}
+
+                      <div className="flex justify-end pt-4">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsEditing(false);
+                            setEditingRecommendation(null);
+                          }}
+                          className="px-4 py-2 border border-gray-300 text-gray-700 rounded mr-2"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="category-filter"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Filter by Category
+                </label>
+                <div className="relative">
+                  <select
+                    id="category-filter"
+                    value={activeCategory}
+                    onChange={(e) => setActiveCategory(e.target.value)}
+                    className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Categories</option>
+                    {categories.map((category) => (
+                      <option
+                        key={category}
+                        value={category}
+                        className="capitalize"
                       >
-                        <span className="text-gray-400 text-lg capitalize">
-                          {item.category}
-                        </span>
-                      </div>
-                    )}
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg
+                      className="h-5 w-5 text-gray-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="p-4">
-                      <h3 className="text-xl font-bold mb-1">{item.name}</h3>
+              <div>
+                <label
+                  htmlFor="status-filter"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Filter by Status
+                </label>
+                <div className="relative">
+                  <select
+                    id="status-filter"
+                    value={recommendationStatus}
+                    onChange={(e) =>
+                      setRecommendationStatus(
+                        e.target.value as
+                          | "all"
+                          | "recommended"
+                          | "not_recommended"
+                      )
+                    }
+                    className="w-full px-3 py-2 appearance-none bg-white border border-gray-300 rounded-md pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">All Places</option>
+                    <option value="recommended">Recommended Only</option>
+                    <option value="not_recommended">
+                      Not Recommended Only
+                    </option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                    <svg
+                      className="h-5 w-5 text-gray-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a 1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                      {item.rating && (
-                        <div className="mb-3">{renderRating(item.rating)}</div>
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredRecommendations.length > 0 ? (
+                  filteredRecommendations.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`bg-white rounded-lg shadow-md overflow-hidden relative ${
+                        item.is_recommended === false
+                          ? "border-2 border-red-300"
+                          : ""
+                      }`}
+                    >
+                      {item.is_recommended === false && (
+                        <div className="absolute top-2 left-2 z-10 bg-red-500 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                          <ThumbsDown size={12} />
+                          Not Recommended
+                        </div>
                       )}
 
-                      {item.description && (
-                        <p className="text-gray-600 text-sm mb-4">
-                          {item.description}
-                        </p>
+                      {(hasPermission("owner") ||
+                        hasPermission("manager") ||
+                        hasPermission("family")) && (
+                        <button
+                          onClick={() => handleDeleteRecommendation(item.id)}
+                          className="absolute top-2 right-12 bg-red-500/90 hover:bg-red-600 text-white p-1.5 rounded-full z-10"
+                          aria-label="Delete recommendation"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       )}
 
-                      <div className="space-y-2 mb-4">
-                        {item.address && (
-                          <div className="flex items-start text-sm">
-                            <MapPin className="h-4 w-4 text-gray-400 mt-0.5 mr-2 flex-shrink-0" />
-                            <span>{item.address}</span>
+                      {(hasPermission("owner") ||
+                        hasPermission("manager") ||
+                        hasPermission("family")) && (
+                        <button
+                          onClick={() =>
+                            toggleRecommendationStatus(
+                              item.id,
+                              item.is_recommended
+                            )
+                          }
+                          className={`absolute top-2 right-24 p-1.5 rounded-full z-10 ${
+                            item.is_recommended !== false
+                              ? "bg-red-500/90 hover:bg-red-600 text-white"
+                              : "bg-green-500/90 hover:bg-green-600 text-white"
+                          }`}
+                          aria-label={
+                            item.is_recommended !== false
+                              ? "Mark as not recommended"
+                              : "Mark as recommended"
+                          }
+                        >
+                          {item.is_recommended !== false ? (
+                            <ThumbsDown size={16} />
+                          ) : (
+                            <ThumbsUp size={16} />
+                          )}
+                        </button>
+                      )}
+
+                      {(hasPermission("owner") ||
+                        hasPermission("manager") ||
+                        hasPermission("family")) && (
+                        <button
+                          onClick={() => handleStartEditing(item)}
+                          className="absolute top-2 right-2 bg-white/90 hover:bg-white text-gray-700 p-1.5 rounded-full z-10"
+                          aria-label="Edit recommendation"
+                        >
+                          <Edit size={16} />
+                        </button>
+                      )}
+
+                      {item.images && item.images.length > 0 ? (
+                        <div
+                          className={`h-48 w-full relative ${
+                            item.is_recommended === false ? "opacity-70" : ""
+                          }`}
+                        >
+                          <img
+                            src={item.images[0]}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute top-2 left-2 bg-gray-900/70 text-white text-xs px-2 py-1 rounded-full capitalize">
+                            {item.category}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className={`h-48 w-full bg-gray-200 flex items-center justify-center ${
+                            item.is_recommended === false ? "opacity-70" : ""
+                          }`}
+                        >
+                          <span className="text-gray-400 text-lg capitalize">
+                            {item.category}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="p-4">
+                        <h3 className="text-xl font-bold mb-1">{item.name}</h3>
+
+                        {item.rating && (
+                          <div className="mb-3">
+                            {renderRating(item.rating)}
                           </div>
                         )}
 
-                        {item.phone_number && (
-                          <div className="flex items-center text-sm">
-                            <Phone className="h-4 w-4 text-gray-400 mr-2" />
-                            <a
-                              href={`tel:${item.phone_number}`}
-                              className="text-blue-600 hover:underline"
-                            >
-                              {item.phone_number}
-                            </a>
-                          </div>
+                        {item.description && (
+                          <p className="text-gray-600 text-sm mb-4">
+                            {item.description}
+                          </p>
                         )}
 
-                        {item.website && (
-                          <a
-                            href={item.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
-                          >
-                            <ExternalLink className="h-4 w-4 mr-1" />
-                            Visit Website
-                          </a>
-                        )}
-                      </div>
-
-                      <div className="border-t pt-3 mt-3">
-                        <h4 className="font-semibold flex items-center text-sm mb-2">
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Notes ({notes[item.id]?.length || 0})
-                        </h4>
-
-                        <div className="space-y-3 mb-3 max-h-40 overflow-y-auto">
-                          {notes[item.id]?.map((note) => (
-                            <div
-                              key={note.id}
-                              className="text-sm bg-gray-50 p-2 rounded"
-                            >
-                              <div className="flex items-center gap-2 mb-1">
-                                {note.user_avatar ? (
-                                  <img
-                                    src={note.user_avatar}
-                                    alt={note.user_name}
-                                    className="h-6 w-6 rounded-full"
-                                  />
-                                ) : (
-                                  <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-800">
-                                    {note.user_name?.charAt(0) || "?"}
-                                  </div>
-                                )}
-                                <span className="font-medium">
-                                  {note.user_name}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  {new Date(
-                                    note.created_at
-                                  ).toLocaleDateString()}
-                                </span>
-                              </div>
-                              <p className="text-gray-700 pl-8">
-                                {note.content}
-                              </p>
+                        <div className="space-y-2 mb-4">
+                          {item.address && (
+                            <div className="flex items-start text-sm">
+                              <MapPin className="h-4 w-4 text-gray-400 mt-0.5 mr-2 flex-shrink-0" />
+                              <span>{item.address}</span>
                             </div>
-                          ))}
+                          )}
 
-                          {(!notes[item.id] ||
-                            notes[item.id]?.length === 0) && (
-                            <p className="text-sm text-gray-500 italic">
-                              No notes yet. Be the first to add one!
-                            </p>
+                          {item.phone_number && (
+                            <div className="flex items-center text-sm">
+                              <Phone className="h-4 w-4 text-gray-400 mr-2" />
+                              <a
+                                href={`tel:${item.phone_number}`}
+                                className="text-blue-600 hover:underline"
+                              >
+                                {item.phone_number}
+                              </a>
+                            </div>
+                          )}
+
+                          {item.website && (
+                            <a
+                              href={item.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              Visit Website
+                            </a>
                           )}
                         </div>
 
-                        <div className="flex items-center mt-2">
-                          <label
-                            htmlFor={`note-input-${item.id}`}
-                            className="sr-only"
-                          >
-                            Add a note for {item.name}
-                          </label>
-                          <input
-                            id={`note-input-${item.id}`}
-                            type="text"
-                            placeholder="Add a note..."
-                            value={newNotes[item.id] || ""}
-                            onChange={(e) =>
-                              setNewNotes({
-                                ...newNotes,
-                                [item.id]: e.target.value,
-                              })
-                            }
-                            className="flex-1 text-sm border rounded-l-md py-1 px-2"
-                          />
-                          <button
-                            onClick={() => handleAddNote(item.id)}
-                            className="bg-blue-500 text-white text-sm py-1 px-3 rounded-r-md hover:bg-blue-600"
-                            aria-label={`Add note to ${item.name}`}
-                          >
-                            Add
-                          </button>
+                        <div className="border-t pt-3 mt-3">
+                          <h4 className="font-semibold flex items-center text-sm mb-2">
+                            <MessageSquare className="h-4 w-4 mr-1" />
+                            Notes ({notes[item.id]?.length || 0})
+                          </h4>
+
+                          <div className="space-y-3 mb-3 max-h-40 overflow-y-auto">
+                            {notes[item.id]?.map((note) => (
+                              <div
+                                key={note.id}
+                                className="text-sm bg-gray-50 p-2 rounded"
+                              >
+                                <div className="flex items-center gap-2 mb-1">
+                                  {note.user_avatar ? (
+                                    <img
+                                      src={note.user_avatar}
+                                      alt={note.user_name}
+                                      className="h-6 w-6 rounded-full"
+                                    />
+                                  ) : (
+                                    <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-xs text-blue-800">
+                                      {note.user_name?.charAt(0) || "?"}
+                                    </div>
+                                  )}
+                                  <span className="font-medium">
+                                    {note.user_name}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(
+                                      note.created_at
+                                    ).toLocaleDateString()}
+                                  </span>
+                                </div>
+                                <p className="text-gray-700 pl-8">
+                                  {note.content}
+                                </p>
+                              </div>
+                            ))}
+
+                            {(!notes[item.id] ||
+                              notes[item.id]?.length === 0) && (
+                              <p className="text-sm text-gray-500 italic">
+                                No notes yet. Be the first to add one!
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center mt-2">
+                            <label
+                              htmlFor={`note-input-${item.id}`}
+                              className="sr-only"
+                            >
+                              Add a note for {item.name}
+                            </label>
+                            <input
+                              id={`note-input-${item.id}`}
+                              type="text"
+                              placeholder="Add a note..."
+                              value={newNotes[item.id] || ""}
+                              onChange={(e) =>
+                                setNewNotes({
+                                  ...newNotes,
+                                  [item.id]: e.target.value,
+                                })
+                              }
+                              className="flex-1 text-sm border rounded-l-md py-1 px-2"
+                            />
+                            <button
+                              onClick={() => handleAddNote(item.id)}
+                              className="bg-blue-500 text-white text-sm py-1 px-3 rounded-r-md hover:bg-blue-600"
+                              aria-label={`Add note to ${item.name}`}
+                            >
+                              Add
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    No recommendations found for this category and status.
                   </div>
-                ))
-              ) : (
-                <div className="col-span-full text-center py-12 text-gray-500">
-                  No recommendations found for this category and status.
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </ErrorBoundary>
     </AuthenticatedLayout>
   );
 }

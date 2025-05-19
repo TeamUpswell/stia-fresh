@@ -163,8 +163,14 @@ export default function SectionForm({ section, onClose, onSaved }: SectionFormPr
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 mb-2">Property</label>
+            <label 
+              htmlFor="property-select" 
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Property
+            </label>
             <select
+              id="property-select"
               className="w-full px-3 py-2 border rounded"
               value={formData.property_id || ""}
               onChange={(e) =>
