@@ -26,22 +26,47 @@ export default function UserManagementPage() {
   useEffect(() => {
     async function fetchUsers() {
       try {
-        const { data, error } = await supabase.from("users").select("*");
+        // Use the auth.users table instead of users
+        const { data, error } = await supabase
+          .from("auth_users_view") // We'll create this view
+          .select("*");
 
-        if (error) throw error;
+        if (error) {
+          // If the view doesn't exist yet, handle it gracefully
+          console.error("Error fetching users:", error);
+          
+          // Fetch from auth.users using a function call instead
+          const { data: userData, error: funcError } = await supabase
+            .rpc('get_users')
+            .select();
+            
+          if (funcError) {
+            console.error("Backup method failed too:", funcError);
+            setUsers([]);
+            return;
+          }
+          
+          setUsers(userData);
+          return;
+        }
 
         // Get user roles in a separate query
         const { data: rolesData, error: rolesError } = await supabase
           .from("user_roles")
           .select("*");
 
-        if (rolesError) throw rolesError;
+        if (rolesError) {
+          console.error("Error fetching roles:", rolesError);
+          // Continue with users but without roles
+          setUsers(data);
+          return;
+        }
 
         // Map roles to users
         const usersWithRoles = data.map((user: AppUser) => {
           const userRoles = rolesData
-            .filter((role: any) => role.user_id === user.id)
-            .map((role: any) => role.role);
+            ?.filter((role: any) => role.user_id === user.id)
+            .map((role: any) => role.role) || [];
 
           return {
             ...user,
@@ -52,6 +77,7 @@ export default function UserManagementPage() {
         setUsers(usersWithRoles);
       } catch (error) {
         console.error("Error fetching users:", error);
+        setUsers([]);
       } finally {
         setLoading(false);
       }

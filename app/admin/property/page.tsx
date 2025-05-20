@@ -63,6 +63,7 @@ export default function PropertySettings() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [property, setProperty] = useState<any>(null);
   const [selectedTabIndex, setSelectedTabIndex] = useState(0);
+  const [propertyId, setPropertyId] = useState<string | null>(null);
 
   // Add section-specific saving states
   const [isSavingBasic, setIsSavingBasic] = useState(false);
@@ -136,12 +137,19 @@ export default function PropertySettings() {
 
         if (propertyData) {
           setProperty(propertyData);
+          // Also set the propertyId if it wasn't set already
+          if (!propertyId && propertyData.id) {
+            setPropertyId(propertyData.id);
+          }
           // Populate form with property data
           reset(propertyData);
         }
       } catch (error) {
         console.error("Error loading property:", error);
         toast.error("Failed to load property data");
+      } finally {
+        // Add this line to stop the loading state
+        setIsLoading(false);
       }
     }
 
@@ -332,7 +340,7 @@ export default function PropertySettings() {
       const { error: uploadError } = await supabase.storage
         .from("properties")
         .upload(filePath, file, {
-          cacheControl: "3600",
+          cacheControl: "31536000", // 1 year for static images
           upsert: true,
         });
 
@@ -370,6 +378,16 @@ export default function PropertySettings() {
       toast.error(error.message || "Failed to upload image");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleSomeFunction = async () => {
+    try {
+      // Your code here...
+    } catch (error) {
+      console.error("Error:", error);
+    } finally {
+      // Any cleanup
     }
   };
 
@@ -419,8 +437,8 @@ export default function PropertySettings() {
                     <path
                       className="opacity-75"
                       fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
                   </svg>
                   Saving...
                 </span>
@@ -657,7 +675,11 @@ export default function PropertySettings() {
                         disabled={isSavingBasic}
                         className={`
                           flex items-center px-4 py-2 rounded-md shadow-sm
-                          ${isSavingBasic ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          ${
+                            isSavingBasic
+                              ? "bg-gray-400"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          }
                           text-white font-medium text-sm
                         `}
                       >
@@ -680,49 +702,8 @@ export default function PropertySettings() {
                               <path
                                 className="opacity-75"
                                 fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
-                            </svg>
-                            Saving...
-                          </span>
-                        ) : (
-                          <span className="flex items-center">
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Basic Info
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                    <div className="col-span-1 md:col-span-2 mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={saveBasicInfo}
-                        disabled={isSavingBasic}
-                        className={`flex items-center px-4 py-2 rounded-md shadow-sm
-                          ${isSavingBasic ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
-                          text-white font-medium text-sm`}
-                      >
-                        {isSavingBasic ? (
-                          <span className="flex items-center">
-                            <svg
-                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              ></circle>
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
                             </svg>
                             Saving...
                           </span>
@@ -738,205 +719,139 @@ export default function PropertySettings() {
 
                   {/* Visual Assets */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
-                    <div>
-                      <h3 className="text-lg font-medium mb-4">
-                        Main Property Photo
-                      </h3>
-                      <div className="mb-6">
-                        <div className="border rounded-lg overflow-hidden bg-gray-50">
-                          <div className="relative h-64 w-full mb-4">
-                            {property?.main_photo_url ? (
-                              <Image
-                                src={property.main_photo_url}
-                                alt={property.name || "Property"}
-                                fill
-                                className="object-cover"
-                              />
-                            ) : (
-                              <div className="flex items-center justify-center h-full">
-                                <p className="text-gray-400">
-                                  No main photo uploaded yet
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Upload progress indicator */}
-                            {isUploading && (
-                              <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center">
-                                <div className="w-64 bg-gray-200 rounded-full h-2.5 mb-4">
-                                  <div
-                                    className={`bg-blue-600 h-2.5 rounded-full transition-all duration-150 ${
-                                      uploadProgress < 25
-                                        ? "w-1/4"
-                                        : uploadProgress < 50
-                                        ? "w-2/4"
-                                        : uploadProgress < 75
-                                        ? "w-3/4"
-                                        : "w-full"
-                                    }`}
-                                    aria-valuenow={uploadProgress}
-                                    aria-valuemin="0"
-                                    aria-valuemax="100"
-                                    aria-label="Upload progress indicator"
-                                    role="progressbar"
-                                  ></div>
-                                </div>
-                                <p className="text-white">
-                                  Uploading... {uploadProgress}%
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="p-4 flex justify-end">
-                            <label className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md cursor-pointer">
-                              <Upload className="h-4 w-4 mr-2" />
-                              Upload New Photo
-                              <input
-                                type="file"
-                                accept="image/jpeg, image/png, image/webp"
-                                onChange={handleImageUpload}
-                                className="sr-only"
-                              />
-                            </label>
-                          </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Main Photo
+                        </label>
+                        <div className="flex items-center space-x-4">
+                          {property?.main_photo_url && (
+                            <Image
+                              src={property.main_photo_url}
+                              alt="Main Photo"
+                              width={100}
+                              height={100}
+                              className="rounded-md"
+                            />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
                         </div>
+                        {isUploading && (
+                          <div className="mt-2 text-sm text-gray-500">
+                            Uploading... {uploadProgress}%
+                          </div>
+                        )}
                       </div>
-
-                      <h3 className="text-lg font-medium mb-4">
-                        Additional Property Photos
-                      </h3>
-                      <p className="text-gray-500 mb-4">
-                        Feature coming soon: Upload multiple images for your
-                        property gallery.
-                      </p>
-
-                      <h3 className="text-lg font-medium mb-4">Floor Plan</h3>
-                      <p className="text-gray-500 mb-4">
-                        Feature coming soon: Upload floor plans of your
-                        property.
-                      </p>
                     </div>
                   </Tab.Panel>
 
                   {/* Property Details */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Wi-Fi Information */}
-                      <div className="col-span-1 md:col-span-2 border-b pb-4 mb-4">
-                        <h3 className="text-lg font-medium mb-4 flex items-center">
-                          <Wifi className="h-5 w-5 mr-2 text-blue-500" />
-                          Wi-Fi Information
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Wi-Fi Network Name
-                            </label>
-                            <input
-                              type="text"
-                              {...register("wifi_name")}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Wi-Fi Password
-                            </label>
-                            <input
-                              type="text"
-                              {...register("wifi_password")}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Wi-Fi Name
+                        </label>
+                        <input
+                          type="text"
+                          {...register("wifi_name")}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
 
-                      {/* Check-in/Check-out Instructions */}
-                      <div className="col-span-1 md:col-span-2 border-b pb-4 mb-4">
-                        <h3 className="text-lg font-medium mb-4">
-                          Check-in/Check-out
-                        </h3>
-                        <div className="grid grid-cols-1 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Check-in Instructions
-                            </label>
-                            <textarea
-                              {...register("check_in_instructions")}
-                              rows={3}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="Instructions for guests arriving at your property..."
-                            ></textarea>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Check-out Instructions
-                            </label>
-                            <textarea
-                              {...register("check_out_instructions")}
-                              rows={3}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="Instructions for guests departing your property..."
-                            ></textarea>
-                          </div>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Wi-Fi Password
+                        </label>
+                        <input
+                          type="text"
+                          {...register("wifi_password")}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
 
-                      {/* House Rules */}
-                      <div className="col-span-1 md:col-span-2 border-b pb-4 mb-4">
-                        <h3 className="text-lg font-medium mb-4">
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Check-in Instructions
+                        </label>
+                        <textarea
+                          {...register("check_in_instructions")}
+                          rows={4}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Provide check-in instructions..."
+                        ></textarea>
+                      </div>
+
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Check-out Instructions
+                        </label>
+                        <textarea
+                          {...register("check_out_instructions")}
+                          rows={4}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Provide check-out instructions..."
+                        ></textarea>
+                      </div>
+
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           House Rules
-                        </h3>
+                        </label>
                         <textarea
                           {...register("house_rules")}
                           rows={4}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="List your house rules here..."
+                          placeholder="Provide house rules..."
                         ></textarea>
                       </div>
 
-                      {/* Security & Parking */}
-                      <div>
-                        <h3 className="text-lg font-medium mb-4 flex items-center">
-                          <Shield className="h-5 w-5 mr-2 text-blue-500" />
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Security Information
-                        </h3>
+                        </label>
                         <textarea
                           {...register("security_info")}
-                          rows={3}
+                          rows={4}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Alarm codes, emergency contacts, etc..."
+                          placeholder="Provide security information..."
                         ></textarea>
                       </div>
 
-                      <div>
-                        <h3 className="text-lg font-medium mb-4 flex items-center">
-                          <Car className="h-5 w-5 mr-2 text-blue-500" />
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Parking Information
-                        </h3>
+                        </label>
                         <textarea
                           {...register("parking_info")}
-                          rows={3}
+                          rows={4}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Parking instructions and regulations..."
+                          placeholder="Provide parking information..."
                         ></textarea>
                       </div>
 
-                      {/* Amenities */}
                       <div className="col-span-1 md:col-span-2">
-                        <h3 className="text-lg font-medium mb-4">Amenities</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Amenities
+                        </label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                           {commonAmenities.map((amenity) => (
-                            <div key={amenity} className="flex items-start">
+                            <div key={amenity} className="flex items-center">
                               <input
+                                id={`amenity-${amenity.toLowerCase().replace(/\s+/g, '-')}`}
                                 type="checkbox"
-                                id={`amenity-${amenity}`}
                                 value={amenity}
-                                className="h-4 w-4 mt-1 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                {...register("amenities")}
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                aria-label={amenity}
                               />
-                              <label
-                                htmlFor={`amenity-${amenity}`}
+                              <label 
+                                htmlFor={`amenity-${amenity.toLowerCase().replace(/\s+/g, '-')}`} 
                                 className="ml-2 text-sm text-gray-700"
                               >
                                 {amenity}
@@ -952,7 +867,11 @@ export default function PropertySettings() {
                         disabled={isSavingDetails}
                         className={`
                           flex items-center px-4 py-2 rounded-md shadow-sm
-                          ${isSavingDetails ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          ${
+                            isSavingDetails
+                              ? "bg-gray-400"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          }
                           text-white font-medium text-sm
                         `}
                       >
@@ -975,49 +894,8 @@ export default function PropertySettings() {
                               <path
                                 className="opacity-75"
                                 fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
-                            </svg>
-                            Saving...
-                          </span>
-                        ) : (
-                          <span className="flex items-center">
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Property Details
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                    <div className="col-span-1 md:col-span-2 mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={savePropertyDetails}
-                        disabled={isSavingDetails}
-                        className={`flex items-center px-4 py-2 rounded-md shadow-sm
-                          ${isSavingDetails ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
-                          text-white font-medium text-sm`}
-                      >
-                        {isSavingDetails ? (
-                          <span className="flex items-center">
-                            <svg
-                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              ></circle>
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
                             </svg>
                             Saving...
                           </span>
@@ -1031,57 +909,40 @@ export default function PropertySettings() {
                     </div>
                   </Tab.Panel>
 
-                  {/* Location & Area */}
+                  {/* Location */}
                   <Tab.Panel className="rounded-xl bg-white p-6 shadow">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Map Coordinates */}
-                      <div className="col-span-1 md:col-span-2 mb-4">
-                        <h3 className="text-lg font-medium mb-4">
-                          Map Location
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Latitude
-                            </label>
-                            <input
-                              type="number"
-                              step="0.000001"
-                              {...register("latitude")}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Longitude
-                            </label>
-                            <input
-                              type="number"
-                              step="0.000001"
-                              {...register("longitude")}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Map Preview Placeholder */}
-                        <div className="mt-4 bg-gray-100 border rounded-lg h-64 flex items-center justify-center">
-                          <p className="text-gray-500">
-                            Map preview coming soon
-                          </p>
-                        </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Latitude
+                        </label>
+                        <input
+                          type="text"
+                          {...register("latitude")}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
                       </div>
 
-                      {/* Neighborhood Description */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Longitude
+                        </label>
+                        <input
+                          type="text"
+                          {...register("longitude")}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+
                       <div className="col-span-1 md:col-span-2">
-                        <h3 className="text-lg font-medium mb-4">
-                          Neighborhood
-                        </h3>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Neighborhood Description
+                        </label>
                         <textarea
                           {...register("neighborhood_description")}
                           rows={4}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Describe the neighborhood, nearby attractions, etc..."
+                          placeholder="Describe the neighborhood..."
                         ></textarea>
                       </div>
                     </div>
@@ -1091,7 +952,11 @@ export default function PropertySettings() {
                         disabled={isSavingLocation}
                         className={`
                           flex items-center px-4 py-2 rounded-md shadow-sm
-                          ${isSavingLocation ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
+                          ${
+                            isSavingLocation
+                              ? "bg-gray-400"
+                              : "bg-blue-600 hover:bg-blue-700"
+                          }
                           text-white font-medium text-sm
                         `}
                       >
@@ -1114,8 +979,8 @@ export default function PropertySettings() {
                               <path
                                 className="opacity-75"
                                 fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
                             </svg>
                             Saving...
                           </span>
@@ -1123,47 +988,6 @@ export default function PropertySettings() {
                           <span className="flex items-center">
                             <Save className="h-4 w-4 mr-2" />
                             Save Location
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                    <div className="col-span-1 md:col-span-2 mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={saveLocation}
-                        disabled={isSavingLocation}
-                        className={`flex items-center px-4 py-2 rounded-md shadow-sm
-                          ${isSavingLocation ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}
-                          text-white font-medium text-sm`}
-                      >
-                        {isSavingLocation ? (
-                          <span className="flex items-center">
-                            <svg
-                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              ></circle>
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              ></path>
-                            </svg>
-                            Saving...
-                          </span>
-                        ) : (
-                          <span className="flex items-center">
-                            <Save className="h-4 w-4 mr-2" />
-                            Save Location Info
                           </span>
                         )}
                       </button>

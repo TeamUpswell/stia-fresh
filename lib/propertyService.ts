@@ -18,7 +18,7 @@ export async function getMainProperty() {
   const { data, error } = await supabase
     .from('properties')
     .select('*')
-    .eq('is_active', true)
+    .eq('is_active', true) // ✓ Confirmed column exists in schema
     .order('created_at', { ascending: true })
     .limit(1)
     .single();

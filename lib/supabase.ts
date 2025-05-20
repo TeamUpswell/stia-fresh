@@ -64,3 +64,13 @@ export async function createStorageBuckets() {
     console.error('Error creating storage bucket:', error);
   }
 }
+
+// Add validation helpers like this to your supabase.ts
+export const validateDatabaseRecord = (
+  data: any, 
+  requiredFields: string[]
+): boolean => {
+  return requiredFields.every(field => 
+    data[field] !== undefined && data[field] !== null
+  );
+}

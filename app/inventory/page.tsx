@@ -47,6 +47,33 @@ function useLoadingTimeout(initialLoading = false, timeoutMs = 10000) {
   };
 }
 
+// Add this function when implementing inventory image uploads
+const handleInventoryImageUpload = async (file: File, itemId: string) => {
+  try {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `inventory-${itemId}-${Date.now()}.${fileExt}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from("inventory")
+      .upload(fileName, file, {
+        cacheControl: "31536000", // 1 year for static inventory images
+        upsert: true,
+      });
+      
+    if (uploadError) throw uploadError;
+    
+    // Get the public URL
+    const { data: publicUrlData } = supabase.storage
+      .from("inventory")
+      .getPublicUrl(fileName);
+      
+    return publicUrlData.publicUrl;
+  } catch (error) {
+    console.error("Error uploading inventory image:", error);
+    throw error;
+  }
+};
+
 export default function InventoryPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<InventoryItem[]>([]);

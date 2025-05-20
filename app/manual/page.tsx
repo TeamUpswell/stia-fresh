@@ -194,7 +194,7 @@ export default function ManualPage() {
 
             {/* Essential Property Information */}
             {property && (
-              <div className="bg-white rounded-lg shadow-md overflow-hidden">
+              <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
                 <div className="p-6">
                   <h2 className="text-xl font-bold mb-4 flex items-center">
                     <Home className="h-5 w-5 mr-2 text-blue-500" />
@@ -209,8 +209,12 @@ export default function ManualPage() {
                         <h3 className="font-medium text-black">WiFi Information</h3>
                       </div>
                       <div className="pl-7">
-                        <p className="text-sm mb-1 text-black"><span className="font-medium">Network:</span> {property.wifi_name || 'Not provided'}</p>
-                        <p className="text-sm text-black"><span className="font-medium">Password:</span> {property.wifi_password || 'Not provided'}</p>
+                        <p className="text-sm mb-1 text-black">
+                          <span className="font-medium">Network:</span> {property.wifi_name || 'Not provided'}
+                        </p>
+                        <p className="text-sm text-black">
+                          <span className="font-medium">Password:</span> {property.wifi_password || 'Not provided'}
+                        </p>
                       </div>
                     </div>
                     
@@ -221,143 +225,65 @@ export default function ManualPage() {
                         <h3 className="font-medium text-black">Check-in/out</h3>
                       </div>
                       <div className="pl-7 space-y-1 text-sm">
-                        <p className="text-black"><span className="font-medium">Check-in:</span> {property.check_in_instructions?.split('\n')[0] || 'See details below'}</p>
-                        <p className="text-black"><span className="font-medium">Check-out:</span> {property.check_out_instructions?.split('\n')[0] || 'See details below'}</p>
+                        <p className="text-black">
+                          <span className="font-medium">Check-in:</span> {property.check_in_instructions?.split('\n')[0] || 'See details below'}
+                        </p>
+                        <p className="text-black">
+                          <span className="font-medium">Check-out:</span> {property.check_out_instructions?.split('\n')[0] || 'See details below'}
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Expandable Property Details */}
+                  {/* Additional Key Information Cards */}
                   <div className="space-y-4">
-                    {/* Check-in Instructions */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <button 
-                        onClick={() => toggleCard('check-in')}
-                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center">
-                          <Clock className="h-5 w-5 mr-2 text-blue-500" />
-                          <h3 className="font-medium text-black">Check-in Instructions</h3>
-                        </div>
-                        {expandedCards['check-in'] ? 
-                          <ChevronUp className="h-5 w-5 text-gray-500" /> : 
-                          <ChevronDown className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                      
-                      {expandedCards['check-in'] && (
-                        <div className="p-4">
-                          <div 
-                            className="prose max-w-none" 
-                            dangerouslySetInnerHTML={{ __html: property.check_in_instructions || 'No details provided.' }}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {property.parking_info && (
+                      <div className="border rounded-lg overflow-hidden">
+                        <button 
+                          onClick={() => toggleCard('parking')}
+                          className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center">
+                            <Car className="h-5 w-5 mr-2 text-blue-500" />
+                            <h3 className="font-medium text-black">Parking Information</h3>
+                          </div>
+                          {expandedCards['parking'] ? 
+                            <ChevronUp className="h-5 w-5 text-gray-500" /> : 
+                            <ChevronDown className="h-5 w-5 text-gray-500" />
+                          }
+                        </button>
+                        
+                        {expandedCards['parking'] && (
+                          <div className="p-4">
+                            <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: property.parking_info }} />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
-                    {/* Check-out Instructions */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <button 
-                        onClick={() => toggleCard('check-out')}
-                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center">
-                          <Clock className="h-5 w-5 mr-2 text-blue-500" />
-                          <h3 className="font-medium text-black">Check-out Instructions</h3>
-                        </div>
-                        {expandedCards['check-out'] ? 
-                          <ChevronUp className="h-5 w-5 text-gray-500" /> : 
-                          <ChevronDown className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                      
-                      {expandedCards['check-out'] && (
-                        <div className="p-4">
-                          <div 
-                            className="prose max-w-none" 
-                            dangerouslySetInnerHTML={{ __html: property.check_out_instructions || 'No details provided.' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* House Rules */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <button 
-                        onClick={() => toggleCard('house-rules')}
-                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center">
-                          <Info className="h-5 w-5 mr-2 text-blue-500" />
-                          <h3 className="font-medium text-black">House Rules</h3>
-                        </div>
-                        {expandedCards['house-rules'] ? 
-                          <ChevronUp className="h-5 w-5 text-gray-500" /> : 
-                          <ChevronDown className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                      
-                      {expandedCards['house-rules'] && (
-                        <div className="p-4">
-                          <div 
-                            className="prose max-w-none" 
-                            dangerouslySetInnerHTML={{ __html: property.house_rules || 'No house rules specified.' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Parking Info */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <button 
-                        onClick={() => toggleCard('parking')}
-                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center">
-                          <Car className="h-5 w-5 mr-2 text-blue-500" />
-                          <h3 className="font-medium text-black">Parking Information</h3>
-                        </div>
-                        {expandedCards['parking'] ? 
-                          <ChevronUp className="h-5 w-5 text-gray-500" /> : 
-                          <ChevronDown className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                      
-                      {expandedCards['parking'] && (
-                        <div className="p-4">
-                          <div 
-                            className="prose max-w-none" 
-                            dangerouslySetInnerHTML={{ __html: property.parking_info || 'No parking information provided.' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Security Info */}
-                    <div className="border rounded-lg overflow-hidden">
-                      <button 
-                        onClick={() => toggleCard('security')}
-                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center">
-                          <Shield className="h-5 w-5 mr-2 text-blue-500" />
-                          <h3 className="font-medium text-black">Security Information</h3>
-                        </div>
-                        {expandedCards['security'] ? 
-                          <ChevronUp className="h-5 w-5 text-gray-500" /> : 
-                          <ChevronDown className="h-5 w-5 text-gray-500" />
-                        }
-                      </button>
-                      
-                      {expandedCards['security'] && (
-                        <div className="p-4">
-                          <div 
-                            className="prose max-w-none" 
-                            dangerouslySetInnerHTML={{ __html: property.security_info || 'No security information provided.' }}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {property.security_info && (
+                      <div className="border rounded-lg overflow-hidden">
+                        <button 
+                          onClick={() => toggleCard('security')}
+                          className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center">
+                            <Shield className="h-5 w-5 mr-2 text-blue-500" />
+                            <h3 className="font-medium text-black">Security Information</h3>
+                          </div>
+                          {expandedCards['security'] ? 
+                            <ChevronUp className="h-5 w-5 text-gray-500" /> : 
+                            <ChevronDown className="h-5 w-5 text-gray-500" />
+                          }
+                        </button>
+                        
+                        {expandedCards['security'] && (
+                          <div className="p-4">
+                            <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: property.security_info }} />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

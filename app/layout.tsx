@@ -1,5 +1,6 @@
 import { AuthProvider } from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { PropertyProvider } from "@/components/PropertyContext";
 import "./globals.css";
 import type { Metadata } from "next";
 
@@ -14,7 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
         <AuthProvider>
           <ThemeProvider>
-            {children}
+            <PropertyProvider>
+              {children}
+            </PropertyProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

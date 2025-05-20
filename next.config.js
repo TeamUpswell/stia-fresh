@@ -2,13 +2,21 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ["hkrgfqpshdoroimlulzw.supabase.co", "maps.googleapis.com"],
-  },
-  async redirects() {
-    return [];
-  },
-  async rewrites() {
-    return [];
+    domains: [
+      "localhost",
+      "xjfibpldqlxrhlxzfzyn.supabase.co",
+      "irpyuirjrcmovfsxttlo.supabase.co",
+      "hkrgfqpshdoroimlulzw.supabase.co", // Make sure this exactly matches your Supabase URL
+    ],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "**supabase.co",
+        pathname: "/**",
+      },
+    ],
+    // Add unoptimized option for direct URLs
+    unoptimized: process.env.NODE_ENV === "development",
   },
 };
 

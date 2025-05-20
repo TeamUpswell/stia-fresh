@@ -9,6 +9,7 @@ import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import styles from "./calendar.module.css";
 import { PlusCircle } from "lucide-react";
 import { getMainProperty } from "@/lib/propertyService";
+import { Property } from "@/types/index";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -62,7 +63,16 @@ export default function ReservationCalendar() {
     status: "pending",
     allDay: true,
   });
-  const [property, setProperty] = useState(null);
+  const [property, setProperty] = useState<Property | null>(null);
+
+  // Auth provider needs to handle missing user role mappings
+  // Check role structure matches user_roles table columns
+  const userRoles = user?.roles || [];
+  // Proper check
+  const hasPermission = (requiredRole: string) => {
+    if (!user || !userRoles) return false;
+    // ...
+  };
 
   const fetchReservations = useCallback(async () => {
     try {

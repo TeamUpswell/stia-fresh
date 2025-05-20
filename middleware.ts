@@ -22,6 +22,11 @@ const PROTECTED_ROUTES = [
   '/admin'  // Add this line to protect all admin routes
 ];
 
+// Make route protection more robust
+const isProd = process.env.NODE_ENV === 'production';
+const protectionLevel = isProd ? 'strict' : 'relaxed';
+
+// Use this to determine how strictly to enforce permissions
 export async function middleware(req: NextRequest) {
   console.log("🔍 Middleware running on:", req.nextUrl.pathname);
   
