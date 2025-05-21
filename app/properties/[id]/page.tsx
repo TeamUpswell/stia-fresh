@@ -6,12 +6,24 @@ import { supabase } from "@/lib/supabase";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
+interface Property {
+  id: string;
+  name: string;
+  description?: string;
+  contact_info?: string;
+  main_photo_url?: string;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  // Add any other fields your property might have
+}
+
 export default function PropertyPage() {
   const params = useParams();
-  const propertyId = params.id;
-  const [property, setProperty] = useState(null);
+  const propertyId = params?.id as string;
+  const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPropertyData() {
@@ -45,8 +57,11 @@ export default function PropertyPage() {
           return;
         }
 
+        if (data) {
+          setProperty(data as Property);
+        }
+
         console.log("Property data retrieved:", data);
-        setProperty(data);
       } catch (err) {
         console.error("Unexpected error loading property:", err);
         setError("An unexpected error occurred");
@@ -114,6 +129,13 @@ export default function PropertyPage() {
                   </p>
                 </div>
               </div>
+
+              {property && property.contact_info && (
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold">Contact Information</h3>
+                  <p>{property.contact_info}</p>
+                </div>
+              )}
             </div>
           </div>
         ) : (

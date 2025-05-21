@@ -87,3 +87,25 @@ export interface PropertyFormData {
     created_at?: string;
     updated_at?: string;
 }
+
+// Type for a property
+export interface Property {
+    id: string;
+    name: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    country?: string;
+    description?: string;
+    property_type?: string;
+    bedrooms?: number;
+    bathrooms?: number;
+    max_occupancy?: number;
+    main_photo_url?: string;
+    latitude?: number;
+    longitude?: number;
+    created_at?: string;
+    updated_at?: string;
+    is_active?: boolean;
+}

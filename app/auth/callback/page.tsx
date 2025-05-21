@@ -14,8 +14,8 @@ export default function AuthCallbackPage() {
     const handleCallback = async () => {
       try {
         // Get code from URL
-        const code = searchParams.get("code");
-        const type = searchParams.get("type");
+        const code = searchParams?.get("code");
+        const type = searchParams?.get("type");
         
         if (code) {
           // Only handle email verification and password recovery

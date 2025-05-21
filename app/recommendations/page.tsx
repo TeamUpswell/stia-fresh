@@ -118,7 +118,10 @@ export default function RecommendationsPage() {
 
         // You can use property data to load location-specific recommendations
         if (propertyData?.latitude && propertyData?.longitude) {
-          loadNearbyRecommendations(propertyData.latitude, propertyData.longitude);
+          loadNearbyRecommendations(
+            propertyData.latitude,
+            propertyData.longitude
+          );
         }
       } catch (error) {
         console.error("Error loading property:", error);
@@ -128,24 +131,68 @@ export default function RecommendationsPage() {
     loadPropertyData();
   }, []);
 
+  const loadNearbyRecommendations = async (
+    latitude: number,
+    longitude: number
+  ) => {
+    try {
+      // Fetch recommendations near the specified coordinates
+      const { data, error } = await supabase
+        .from("recommendations")
+        .select("*")
+        .or(
+          `coordinates->lat.gte.${latitude - 0.05},coordinates->lat.lte.${
+            latitude + 0.05
+          }`
+        )
+        .or(
+          `coordinates->lng.gte.${longitude - 0.05},coordinates->lng.lte.${
+            longitude + 0.05
+          }`
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setRecommendations(data || []);
+
+      // Also extract unique categories for filtering
+      if (data && data.length > 0) {
+        const uniqueCategories = Array.from(
+          new Set(data.map((item) => item.category))
+        );
+        setCategories(uniqueCategories);
+      }
+    } catch (error) {
+      console.error("Error loading nearby recommendations:", error);
+      toast.error("Failed to load nearby recommendations");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchNotes = async (recommendations: Recommendation[]) => {
     if (recommendations.length === 0) return;
 
     try {
       // Get notes data from Supabase (This part is missing)
       const { data: notesData, error: notesError } = await supabase
-        .from('recommendation_notes')
-        .select(`
+        .from("recommendation_notes")
+        .select(
+          `
           *,
           profiles:user_id (
             full_name,
             avatar_url
           )
-        `)
-        .in('recommendation_id', recommendations.map(rec => rec.id));
-      
+        `
+        )
+        .in(
+          "recommendation_id",
+          recommendations.map((rec) => rec.id)
+        );
+
       if (notesError) throw notesError;
-      
+
       if (notesData && notesData.length > 0) {
         const groupedNotes: Record<string, RecommendationNote[]> = {};
         notesData.forEach((note) => {
@@ -547,7 +594,25 @@ export default function RecommendationsPage() {
 
   return (
     <AuthenticatedLayout>
-      <ErrorBoundary>
+      <ErrorBoundary
+        fallback={
+          <div className="container mx-auto py-8 px-4 text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">
+              Something went wrong
+            </h2>
+            <p className="mb-4">
+              There was an error loading the recommendations. Please try again
+              later.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Reload Page
+            </button>
+          </div>
+        }
+      >
         <div className="container mx-auto py-8 px-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-6">

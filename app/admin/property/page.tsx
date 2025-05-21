@@ -23,6 +23,7 @@ import {
   Info,
 } from "lucide-react";
 import { getPropertyById, updateProperty } from "@/lib/propertyService";
+import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 
 // Define property type for form data
 interface PropertyFormData {
@@ -79,6 +80,14 @@ export default function PropertySettings() {
     reset,
     formState: { errors },
   } = useForm<PropertyFormData>();
+
+  // Debug current form values
+  useEffect(() => {
+    const subscription = watch((value, { name, type }) => {
+      console.log("Form value changed:", name, value);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
 
   // Property types for dropdown
   const propertyTypes = [
@@ -184,7 +193,9 @@ export default function PropertySettings() {
         } else if (data && data.length === 1) {
           console.log("Single property record confirmed:", data[0].id);
         } else {
-          console.log("No properties found - first one will be created on save");
+          console.log(
+            "No properties found - first one will be created on save"
+          );
         }
       } catch (err) {
         console.error("Error in duplicate check:", err);
@@ -197,63 +208,262 @@ export default function PropertySettings() {
     }
   }, []);
 
-  // Handle form submission
+  // Add this debug function somewhere in your component
+  const debugPropertyDetails = async () => {
+    if (!property?.id) return;
+
+    const { data, error } = await supabase
+      .from("property_details")
+      .select("*")
+      .eq("property_id", property.id);
+
+    console.log("Current property_details:", data, error);
+  };
+
+  // Call it when loading the form
+  useEffect(() => {
+    if (property?.id) {
+      debugPropertyDetails();
+    }
+  }, [property?.id]);
+
+  // Add this near your other debug functions
+  const testDatabaseOperation = async () => {
+    if (!property?.id) {
+      console.error("No property ID available");
+      return;
+    }
+
+    try {
+      // 1. Check if the property exists
+      const { data: propertyData, error: propertyError } = await supabase
+        .from("properties")
+        .select("*")
+        .eq("id", property.id)
+        .single();
+
+      console.log("Property check:", propertyData, propertyError);
+
+      // 2. Check if property_details exists
+      const { data: detailsData, error: detailsError } = await supabase
+        .from("property_details")
+        .select("*")
+        .eq("property_id", property.id);
+
+      console.log("Property details check:", detailsData, detailsError);
+
+      // 3. Attempt a manual insert/update
+      const testData = {
+        property_id: property.id,
+        bedrooms: 2,
+        updated_at: new Date().toISOString(),
+      };
+
+      let result;
+
+      if (detailsData && detailsData.length > 0) {
+        // Update existing
+        result = await supabase
+          .from("property_details")
+          .update(testData)
+          .eq("property_id", property.id);
+      } else {
+        // Create new
+        result = await supabase
+          .from("property_details")
+          .insert([testData]);
+      }
+
+      console.log("Test operation result:", result);
+
+      return { success: !result.error, error: result.error };
+    } catch (error) {
+      console.error("Test database operation failed:", error);
+      return { success: false, error };
+    }
+  };
+
+  // Add this debug function to verify user authentication
+  const checkUserAuth = () => {
+    console.log("Current user:", user);
+    console.log("Auth state:", supabase.auth.getSession());
+  };
+
+  // Update the onSubmit function
+
   const onSubmit = async (data: PropertyFormData) => {
     if (!user) return;
 
     try {
       setIsSaving(true);
 
-      // Format data if needed
-      const formattedData = {
-        ...data,
+      // 1. Save basic property data first (name, address, description)
+      const basicData = {
+        name: data.name,
+        address: data.address,
+        description: data.description,
         updated_at: new Date().toISOString(),
+        is_active: true,
       };
 
-      let result;
+      console.log("Saving basic data:", basicData);
 
-      // Update or insert based on whether we have an existing property
+      let propertyRecord;
+
       if (property?.id) {
         // Update existing property
-        result = await supabase
+        const { data: updatedData, error } = await supabase
           .from("properties")
-          .update(formattedData)
-          .eq("id", property.id);
-      } else {
-        // Create a new property since none exists
-        result = await supabase
-          .from("properties")
-          .insert([formattedData])
+          .update(basicData)
+          .eq("id", property.id)
           .select();
 
-        // Set the property ID for future updates
-        if (result.data && result.data[0]) {
-          setPropertyId(result.data[0].id);
+        if (error) throw error;
+        propertyRecord = updatedData?.[0];
+      } else {
+        // Create new property
+        const { data: newData, error } = await supabase
+          .from("properties")
+          .insert([{ ...basicData, created_at: new Date().toISOString() }])
+          .select();
+
+        if (error) throw error;
+        propertyRecord = newData?.[0];
+
+        if (propertyRecord) {
+          setPropertyId(propertyRecord.id);
+          setProperty(propertyRecord);
         }
       }
 
-      if (result.error) {
-        throw result.error;
+      if (!propertyRecord?.id) {
+        throw new Error("Failed to save basic property data");
       }
 
-      toast.success("Property settings saved successfully");
+      // 2. Save extended property data
+      const extendedSaved = await saveExtendedPropertyInfo(propertyRecord.id);
 
-      // Update local state
-      if (result.data) {
-        const updatedProperty = Array.isArray(result.data)
-          ? result.data[0]
-          : result.data;
-
-        setProperty(updatedProperty);
-
-        // Refresh the form with latest data
-        reset(updatedProperty);
+      if (extendedSaved) {
+        toast.success("All property settings saved successfully");
+      } else {
+        toast.error("Basic property info saved, but some details failed to save", {
+          style: {
+            background: '#FEF3C7', // Light amber color
+            color: '#92400E',      // Dark amber color
+            border: '1px solid #F59E0B',
+          },
+        });
       }
+
+      // 3. Fetch complete updated property data
+      await loadProperty(propertyRecord.id);
     } catch (error: any) {
       console.error("Error saving property:", error);
       toast.error(error.message || "Failed to save property settings");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Add this helper function to reload property data
+  const loadProperty = async (id: string) => {
+    try {
+      const { data: basicData, error: basicError } = await supabase
+        .from("properties")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (basicError) throw basicError;
+
+      // Also fetch extended data if you have that table
+      const { data: extendedData, error: extendedError } = await supabase
+        .from("property_details")
+        .select("*")
+        .eq("property_id", id)
+        .single();
+
+      // Combine the data
+      const combinedData = {
+        ...basicData,
+        ...(extendedData || {}),
+      };
+
+      setProperty(combinedData);
+      reset(combinedData);
+
+      console.log("Loaded complete property data:", combinedData);
+      return combinedData;
+    } catch (error) {
+      console.error("Error loading property:", error);
+      return null;
+    }
+  };
+
+  const saveExtendedPropertyInfo = async (propertyId: string) => {
+    if (!propertyId) return;
+
+    try {
+      // First check if an extended record already exists
+      const { data: existingData, error: checkError } = await supabase
+        .from("property_details") // Create this table in Supabase
+        .select("*")
+        .eq("property_id", propertyId)
+        .single();
+
+      const extendedData = {
+        property_id: propertyId,
+        property_type: watch("property_type"),
+        bedrooms: Number(watch("bedrooms")) || 0,
+        bathrooms: Number(watch("bathrooms")) || 0,
+        max_occupancy: Number(watch("max_occupancy")) || 1,
+        city: watch("city"),
+        state: watch("state"),
+        zip: watch("zip"),
+        country: watch("country"),
+        latitude: watch("latitude") ? parseFloat(String(watch("latitude"))) : null,
+        longitude: watch("longitude") ? parseFloat(String(watch("longitude"))) : null,
+        wifi_name: watch("wifi_name"),
+        wifi_password: watch("wifi_password"),
+        check_in_instructions: watch("check_in_instructions"),
+        check_out_instructions: watch("check_out_instructions"),
+        house_rules: watch("house_rules"),
+        security_info: watch("security_info"),
+        parking_info: watch("parking_info"),
+        amenities: Array.isArray(watch("amenities")) ? watch("amenities") : [],
+        neighborhood_description: watch("neighborhood_description"),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Extended data to save:", extendedData);
+
+      let result;
+
+      if (existingData) {
+        // Update
+        result = await supabase
+          .from("property_details")
+          .update(extendedData)
+          .eq("property_id", propertyId)
+          .select();
+      } else {
+        // Insert
+        result = await supabase
+          .from("property_details")
+          .insert([extendedData])
+          .select();
+      }
+
+      if (result.error) {
+        console.error("Error saving extended property info:", result.error);
+        return false;
+      }
+
+      console.log("Extended property info saved:", result.data);
+      return true;
+    } catch (error) {
+      console.error("Error in saveExtendedPropertyInfo:", error);
+      return false;
     }
   };
 
@@ -263,31 +473,63 @@ export default function PropertySettings() {
 
     // Create new property if it doesn't exist yet
     if (!property?.id) {
-      toast.info("Creating new property...");
-
-      // Get basic form data for new property
+      // Create new property with only the fields in your schema
       const basicData = {
         name: watch("name") || "New Property",
-        property_type: watch("property_type"),
+        address: watch("address") || null,
+        description: watch("description") || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        is_active: true,
       };
 
       try {
+        console.log("Creating new property with data:", basicData);
+
         const { data, error } = await supabase
           .from("properties")
           .insert([basicData])
           .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase insert error:", error);
+          throw error;
+        }
 
         if (data && data[0]) {
+          console.log("New property created successfully:", data[0]);
           setProperty(data[0]);
           setPropertyId(data[0].id);
           toast.success("New property created!");
+
+          // Now immediately create a record in property_details
+          const initialDetails = {
+            property_id: data[0].id,
+            property_type: watch("property_type"),
+            bedrooms: Number(watch("bedrooms")) || 0,
+            bathrooms: Number(watch("bathrooms")) || 0,
+            max_occupancy: Number(watch("max_occupancy")) || 1,
+            city: watch("city"),
+            state: watch("state"),
+            zip: watch("zip"),
+            country: watch("country"),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
+          const { error: detailsError } = await supabase
+            .from("property_details")
+            .insert([initialDetails]);
+
+          if (detailsError) {
+            console.warn(
+              "Could not create initial property details:",
+              detailsError
+            );
+          }
         }
 
-        return; // Exit function after creating property
+        return;
       } catch (err) {
         console.error("Error creating property:", err);
         toast.error("Failed to create property");
@@ -295,25 +537,20 @@ export default function PropertySettings() {
       }
     }
 
-    // Normal update for existing property
+    // Update existing property basic info
     try {
       setIsSavingBasic(true);
 
-      // Get only basic info fields
+      // Only include fields that exist in your schema
       const basicInfoData = {
         name: watch("name"),
-        property_type: watch("property_type"),
-        bedrooms: watch("bedrooms"),
-        bathrooms: watch("bathrooms"),
-        max_occupancy: watch("max_occupancy"),
         address: watch("address"),
-        city: watch("city"),
-        state: watch("state"),
-        zip: watch("zip"),
-        country: watch("country"),
         description: watch("description"),
         updated_at: new Date().toISOString(),
+        is_active: true,
       };
+
+      console.log("Updating property with data:", basicInfoData);
 
       const { data, error } = await supabase
         .from("properties")
@@ -321,14 +558,46 @@ export default function PropertySettings() {
         .eq("id", property.id)
         .select();
 
-      if (error) throw error;
-
-      // Update local state with the returned data
-      if (data && data[0]) {
-        setProperty({ ...property, ...data[0] });
+      if (error) {
+        console.error("Supabase update error:", error);
+        throw error;
       }
 
-      toast.success("Basic property info saved");
+      // Also update the property_details table with the basic fields there
+      const { data: existingDetails } = await supabase
+        .from("property_details")
+        .select("*")
+        .eq("property_id", property.id)
+        .single();
+
+      const detailsData = {
+        property_id: property.id,
+        property_type: watch("property_type"),
+        bedrooms: Number(watch("bedrooms")) || 0,
+        bathrooms: Number(watch("bathrooms")) || 0,
+        max_occupancy: Number(watch("max_occupancy")) || 1,
+        city: watch("city"),
+        state: watch("state"),
+        zip: watch("zip"),
+        country: watch("country"),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingDetails) {
+        await supabase
+          .from("property_details")
+          .update(detailsData)
+          .eq("property_id", property.id);
+      } else {
+        await supabase.from("property_details").insert([detailsData]);
+      }
+
+      console.log("Supabase update response:", data);
+
+      if (data && data[0]) {
+        setProperty({ ...property, ...data[0] });
+        toast.success("Basic property info saved");
+      }
     } catch (error) {
       console.error("Error saving basic info:", error);
       toast.error("Failed to save basic info");
@@ -337,16 +606,35 @@ export default function PropertySettings() {
     }
   };
 
-  // Save Property Details section
+  // Fix the savePropertyDetails function
   const savePropertyDetails = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Add this!
-    if (!user || !property?.id) return;
+    e.preventDefault();
+    if (!user || !property?.id) {
+      toast.error("Please save basic info first");
+      return;
+    }
 
     try {
       setIsSavingDetails(true);
 
-      // Get only property details fields
+      // Check if property_details record exists
+      const { data: existingData, error: checkError } = await supabase
+        .from("property_details")
+        .select("*")
+        .eq("property_id", property.id)
+        .single();
+
+      if (checkError && checkError.code !== "PGRST116") {
+        console.error("Error checking for existing details:", checkError);
+      }
+
+      // Prepare the data for property_details
       const detailsData = {
+        property_id: property.id, // Make sure this is included
+        property_type: watch("property_type"),
+        bedrooms: Number(watch("bedrooms")) || 0,
+        bathrooms: Number(watch("bathrooms")) || 0,
+        max_occupancy: Number(watch("max_occupancy")) || 1,
         wifi_name: watch("wifi_name"),
         wifi_password: watch("wifi_password"),
         check_in_instructions: watch("check_in_instructions"),
@@ -354,18 +642,39 @@ export default function PropertySettings() {
         house_rules: watch("house_rules"),
         security_info: watch("security_info"),
         parking_info: watch("parking_info"),
-        amenities: watch("amenities"),
+        amenities: Array.isArray(watch("amenities")) ? watch("amenities") : [],
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from("properties")
-        .update(detailsData)
-        .eq("id", property.id);
+      console.log("Saving property details:", detailsData);
+      console.log("Property ID:", property.id);
 
-      if (error) throw error;
+      let result;
 
-      toast.success("Property details saved");
+      if (existingData) {
+        console.log("Updating existing property details");
+        // Update existing record
+        result = await supabase
+          .from("property_details")
+          .update(detailsData)
+          .eq("property_id", property.id);
+      } else {
+        console.log("Creating new property details");
+        // Create new record - NOW WITH PROPER DATA
+        result = await supabase
+          .from("property_details")
+          .insert([detailsData]);
+      }
+
+      if (result.error) {
+        console.error("Database error:", result.error);
+        throw result.error;
+      }
+
+      toast.success("Property details saved successfully");
+
+      // Refresh property data to show saved changes
+      await loadProperty(property.id);
     } catch (error: any) {
       console.error("Error saving property details:", error);
       toast.error(error.message || "Failed to save property details");
@@ -376,31 +685,71 @@ export default function PropertySettings() {
 
   // Save Location section
   const saveLocation = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Add this!
-    if (!user || !property?.id) return;
+    e.preventDefault();
+    if (!user || !property?.id) {
+      toast.error("Please save basic info first");
+      return;
+    }
 
     try {
       setIsSavingLocation(true);
 
-      // Get only location fields
+      // Check if property_details record exists
+      const { data: existingData } = await supabase
+        .from("property_details")
+        .select("*")
+        .eq("property_id", property.id)
+        .single();
+
+      // First, save coordinates to properties table (these should be in main table too)
+      const mainLocationData = {
+        latitude: watch("latitude") ? parseFloat(String(watch("latitude"))) : null,
+        longitude: watch("longitude") ? parseFloat(String(watch("longitude"))) : null,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update the main properties table with basic coordinates
+      await supabase
+        .from("properties")
+        .update(mainLocationData)
+        .eq("id", property.id);
+
+      // Then save ALL location data to property_details
       const locationData = {
-        latitude: watch("latitude"),
-        longitude: watch("longitude"),
+        property_id: property.id,
+        latitude: watch("latitude") ? parseFloat(String(watch("latitude"))) : null,
+        longitude: watch("longitude") ? parseFloat(String(watch("longitude"))) : null,
+        city: watch("city"),
+        state: watch("state"),
+        zip: watch("zip"),
+        country: watch("country"),
         neighborhood_description: watch("neighborhood_description"),
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from("properties")
-        .update(locationData)
-        .eq("id", property.id);
+      console.log("Saving location data to property_details:", locationData);
 
-      if (error) throw error;
+      let result;
+
+      if (existingData) {
+        // Update existing record
+        result = await supabase
+          .from("property_details")
+          .update(locationData)
+          .eq("property_id", property.id);
+      } else {
+        // Create new record
+        result = await supabase
+          .from("property_details")
+          .insert([locationData]);
+      }
+
+      if (result.error) throw result.error;
 
       toast.success("Location information saved");
     } catch (error: any) {
       console.error("Error saving location info:", error);
-      toast.error("Failed to save location info");
+      toast.error(error.message || "Failed to save location info");
     } finally {
       setIsSavingLocation(false);
     }
@@ -709,12 +1058,31 @@ export default function PropertySettings() {
 
                       <div className="col-span-1 md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Address
+                          Property Address
                         </label>
+                        <GoogleAddressAutocomplete
+                          placeholder="Start typing to search for addresses..."
+                          onAddressSelect={(address) => {
+                            // Update the form fields with selected address data
+                            setValue("address", address.street);
+                            setValue("city", address.city);
+                            setValue("state", address.state);
+                            setValue("zip", address.zip);
+                            setValue("country", address.country);
+
+                            // Also update location coordinates if available
+                            setValue("latitude", address.latitude);
+                            setValue("longitude", address.longitude);
+
+                            // If you want to show a notification
+                            toast.success("Address filled automatically");
+                          }}
+                        />
+                        {/* Keep the original address input for manual editing */}
                         <input
                           type="text"
                           {...register("address")}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
 
@@ -842,10 +1210,12 @@ export default function PropertySettings() {
                             />
                           )}
                           <input
+                            id="property-image-upload"
                             type="file"
-                            accept="image/*"
+                            className="hidden"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
                             onChange={handleImageUpload}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            aria-label="Upload property image"
                           />
                         </div>
                         {isUploading && (
@@ -950,15 +1320,19 @@ export default function PropertySettings() {
                           {commonAmenities.map((amenity) => (
                             <div key={amenity} className="flex items-center">
                               <input
-                                id={`amenity-${amenity.toLowerCase().replace(/\s+/g, '-')}`}
+                                id={`amenity-${amenity
+                                  .toLowerCase()
+                                  .replace(/\s+/g, "-")}`}
                                 type="checkbox"
                                 value={amenity}
                                 {...register("amenities")}
                                 className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                                 aria-label={amenity}
                               />
-                              <label 
-                                htmlFor={`amenity-${amenity.toLowerCase().replace(/\s+/g, '-')}`} 
+                              <label
+                                htmlFor={`amenity-${amenity
+                                  .toLowerCase()
+                                  .replace(/\s+/g, "-")}`}
                                 className="ml-2 text-sm text-gray-700"
                               >
                                 {amenity}
@@ -1104,6 +1478,15 @@ export default function PropertySettings() {
                   </Tab.Panel>
                 </Tab.Panels>
               </Tab.Group>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={testDatabaseOperation}
+                  className="px-3 py-1 bg-gray-200 text-gray-800 rounded-md text-sm"
+                >
+                  Debug DB
+                </button>
+              </div>
             </form>
           )}
         </div>

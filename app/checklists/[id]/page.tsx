@@ -38,7 +38,8 @@ interface ManualSection {
 }
 
 export default function ChecklistDetailPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params?.id as string;
   const { user, hasPermission } = useAuth();
   const [checklist, setChecklist] = useState<Checklist | null>(null);
   const [checklists, setChecklists] = useState<Checklist[]>([]);

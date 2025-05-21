@@ -49,7 +49,7 @@ export default function ResponsiveImage({
           className={`object-cover transition-opacity ${isLoading ? 'opacity-0' : 'opacity-100'} ${className}`}
           sizes={sizes}
           priority={priority}
-          onLoadingComplete={() => setIsLoading(false)}
+          onLoad={() => setIsLoading(false)} // Changed from onLoadingComplete
           onError={() => {
             if (imgSrc !== fallbackSrc) {
               setImgSrc(fallbackSrc);
