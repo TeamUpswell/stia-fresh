@@ -24,6 +24,8 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "react-hot-toast";
 import { getMainProperty } from "@/lib/propertyService";
+import { convertToWebP, supportsWebP } from "@/lib/imageUtils";
+import ResponsiveImage from "@/components/ResponsiveImage";
 
 // Define types for your data
 interface Property {
@@ -197,23 +199,18 @@ export default function Dashboard() {
     async function setupStorageBucket() {
       try {
         // First check if bucket access works at all
-        const { data: buckets, error: listError } =
-          await supabase.storage.listBuckets();
-
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+        
         if (listError) {
           console.log("Not an admin user - skipping bucket creation");
           return; // Exit early as we likely don't have admin access
         }
-
+        
         // If we can list buckets, check if properties bucket exists
-        const propertiesBucket = buckets?.find(
-          (bucket) => bucket.name === "properties"
-        );
-
+        const propertiesBucket = buckets?.find(bucket => bucket.name === 'properties');
+        
         if (!propertiesBucket) {
-          console.log(
-            "Properties bucket doesn't exist, but may be created by admin"
-          );
+          console.log("Properties bucket doesn't exist, but may be created by admin");
           // Try uploading a test file - the bucket might exist even if we can't see it
           await testBucketAccess();
         } else {
@@ -232,17 +229,13 @@ export default function Dashboard() {
         const { error: uploadError } = await supabase.storage
           .from("properties")
           .upload("test-permission-check.txt", testFile, { upsert: true });
-
+          
         if (uploadError) {
-          console.log(
-            "Note: Cannot write to properties bucket - user has read-only access"
-          );
+          console.log("Note: Cannot write to properties bucket - user has read-only access");
         } else {
           console.log("Successfully wrote to properties bucket");
           // Clean up the test file
-          await supabase.storage
-            .from("properties")
-            .remove(["test-permission-check.txt"]);
+          await supabase.storage.from('properties').remove(['test-permission-check.txt']);
         }
       } catch (err) {
         console.log("Cannot access properties bucket for writing");
@@ -275,16 +268,52 @@ export default function Dashboard() {
     setUploadProgress(0);
 
     try {
+      let fileToUpload = file;
+      let fileExt = file.name.split(".").pop()?.toLowerCase() || 'jpg';
+      
+      // Check if WebP is supported and convert
+      const webpSupported = await supportsWebP();
+      if (webpSupported) {
+        const optimizedBlob = await convertToWebP(file, 1920, 0.85);
+        fileToUpload = new File([optimizedBlob], `property.webp`, {
+          type: 'image/webp'
+        });
+        fileExt = 'webp';
+      }
+      
       // Create unique filename with UUID for reliability
-      const fileExt = file.name.split(".").pop();
       const fileName = `property-${uuidv4()}.${fileExt}`;
-      const filePath = `${fileName}`; // Not adding "properties/" prefix - correct!
+      const filePath = `${fileName}`;
 
-      console.log("Uploading to path:", filePath);
+      console.log("Uploading to path:", filePath, "as", fileToUpload.type);
 
-      // Upload to Supabase Storage with progress tracking
-      const publicUrl = await uploadWithProgress(file, filePath);
+      const { error: uploadError } = await supabase.storage
+        .from("properties")
+        .upload(filePath, fileToUpload, {
+          cacheControl: "31536000", // 1 year for static property images
+          upsert: true,
+        } as any); // Temporary type casting to fix the TypeScript error
 
+      // Monitor progress separately using XHR if needed
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => Math.min(prev + 10, 90)); // Simulate progress
+      }, 200);
+
+      // Clear the interval after upload completes or fails
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+        .from("properties")
+        .getPublicUrl(filePath);
+
+      const publicUrl = publicUrlData.publicUrl;
       console.log("Public URL:", publicUrl);
 
       if (!publicUrl) {
@@ -337,56 +366,7 @@ export default function Dashboard() {
     }
   };
 
-  // A more comprehensive solution if you need actual progress tracking
-  async function uploadWithProgress(
-    file: File,
-    filePath: string
-  ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(percent);
-        }
-      });
-
-      // Get pre-signed URL for direct upload
-      supabase.storage
-        .from("properties")
-        .createSignedUploadUrl(filePath)
-        .then(({ data, error }) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-
-          xhr.open("PUT", data.signedURL);
-          xhr.setRequestHeader("Cache-Control", "max-age=31536000");
-          xhr.setRequestHeader("Content-Type", file.type);
-
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              // Get the public URL
-              const { data: urlData } = supabase.storage
-                .from("properties")
-                .getPublicUrl(filePath);
-
-              resolve(urlData.publicUrl);
-            } else {
-              reject(new Error(`Upload failed: ${xhr.statusText}`));
-            }
-          };
-
-          xhr.onerror = () => reject(new Error("Network error during upload"));
-          xhr.send(file);
-        })
-        .catch(reject);
-    });
-  }
-
-  // Add this to your component (you can call it from a button or useEffect)
+  // Update your test image function to use WebP:
   async function uploadTestImage() {
     try {
       // Create a simple canvas image
@@ -402,13 +382,14 @@ export default function Dashboard() {
         ctx.fillText("Test Image", 10, 50);
       }
 
-      // Convert to blob
+      // Convert to WebP if supported, otherwise PNG
+      const format = await supportsWebP() ? 'webp' : 'png';
       const blob = await new Promise<Blob>((resolve) =>
-        canvas.toBlob((blob) => resolve(blob!), "image/png")
+        canvas.toBlob((blob) => resolve(blob!), `image/${format}`, 0.9)
       );
 
-      // Upload to Supabase
-      const fileName = `test-image-${Date.now()}.png`;
+      // Upload to Supabase with appropriate extension
+      const fileName = `test-image-${Date.now()}.${format}`;
       console.log("Uploading test image:", fileName);
 
       const { data, error } = await supabase.storage
@@ -455,37 +436,11 @@ export default function Dashboard() {
           {/* Property Image */}
           {property?.main_photo_url ? (
             <div className="relative w-full h-full">
-              {/* Replace Next.js Image with standard img tag for direct URL testing */}
-              <img
+              <ResponsiveImage
                 src={property.main_photo_url}
                 alt={property.name || "Property"}
-                className="absolute inset-0 w-full h-full object-cover"
-                onError={(e) => {
-                  console.error(
-                    "Image failed to load:",
-                    property.main_photo_url
-                  );
-                  // Try to load the local placeholder
-                  e.currentTarget.src = "/images/placeholder-property.jpg";
-                  // Set up another error handler for the placeholder
-                  e.currentTarget.onerror = () => {
-                    console.error("Fallback image also failed");
-                    // Proper TypeScript way to remove the event handler
-                    (e.currentTarget as HTMLImageElement).onerror = () => {}; // Empty function instead of null
-                    e.currentTarget.style.display = "none";
-
-                    // Create a gradient fallback directly
-                    const parent = e.currentTarget.parentElement;
-                    if (parent) {
-                      const fallback = document.createElement("div");
-                      fallback.className =
-                        "absolute inset-0 bg-gradient-to-r from-gray-300 to-gray-400 flex items-center justify-center";
-                      fallback.innerHTML =
-                        '<p class="text-white text-lg">Image unavailable</p>';
-                      parent.appendChild(fallback);
-                    }
-                  };
-                }}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                priority={true} // Load the hero image with priority
               />
             </div>
           ) : (

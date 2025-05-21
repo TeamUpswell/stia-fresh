@@ -123,38 +123,79 @@ export default function PropertySettings() {
         if (propertyId) {
           propertyData = await getPropertyById(propertyId);
         } else {
-          // Assuming you store the property ID in some state or context
-          const { data } = await supabase
+          // First try to get any existing property
+          const { data, error } = await supabase
             .from("properties")
-            .select("id")
+            .select("*")
             .limit(1)
             .single();
 
           if (data) {
-            propertyData = await getPropertyById(data.id);
+            propertyData = data;
+            setPropertyId(data.id);
+          } else {
+            // No property exists yet, prepare for creating a new one
+            setIsLoading(false);
+            return; // Don't try to reset form with non-existent data
           }
         }
 
         if (propertyData) {
+          console.log("Property data loaded:", propertyData);
           setProperty(propertyData);
-          // Also set the propertyId if it wasn't set already
-          if (!propertyId && propertyData.id) {
-            setPropertyId(propertyData.id);
+
+          // Convert any null or undefined amenities to empty array
+          if (!propertyData.amenities) {
+            propertyData.amenities = [];
           }
-          // Populate form with property data
+
+          // Reset form with property data
           reset(propertyData);
+          toast.success("Property data loaded successfully");
         }
       } catch (error) {
         console.error("Error loading property:", error);
         toast.error("Failed to load property data");
       } finally {
-        // Add this line to stop the loading state
         setIsLoading(false);
       }
     }
 
     loadProperty();
   }, [propertyId, reset]);
+
+  // Add this to your component for debugging
+  useEffect(() => {
+    // Debug function to check for duplicate properties
+    async function checkForDuplicateProperties() {
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .select("id, name, created_at");
+
+        if (error) {
+          console.error("Error checking properties:", error);
+          return;
+        }
+
+        if (data && data.length > 1) {
+          console.warn("Multiple properties found:", data);
+          // Optional: Add a warning notification for admins
+        } else if (data && data.length === 1) {
+          console.log("Single property record confirmed:", data[0].id);
+        } else {
+          console.log("No properties found - first one will be created on save");
+        }
+      } catch (err) {
+        console.error("Error in duplicate check:", err);
+      }
+    }
+
+    // Only run in development
+    if (process.env.NODE_ENV === "development") {
+      checkForDuplicateProperties();
+    }
+  }, []);
 
   // Handle form submission
   const onSubmit = async (data: PropertyFormData) => {
@@ -173,15 +214,22 @@ export default function PropertySettings() {
 
       // Update or insert based on whether we have an existing property
       if (property?.id) {
+        // Update existing property
         result = await supabase
           .from("properties")
           .update(formattedData)
           .eq("id", property.id);
       } else {
+        // Create a new property since none exists
         result = await supabase
           .from("properties")
           .insert([formattedData])
           .select();
+
+        // Set the property ID for future updates
+        if (result.data && result.data[0]) {
+          setPropertyId(result.data[0].id);
+        }
       }
 
       if (result.error) {
@@ -192,7 +240,14 @@ export default function PropertySettings() {
 
       // Update local state
       if (result.data) {
-        setProperty(result.data[0] || result.data);
+        const updatedProperty = Array.isArray(result.data)
+          ? result.data[0]
+          : result.data;
+
+        setProperty(updatedProperty);
+
+        // Refresh the form with latest data
+        reset(updatedProperty);
       }
     } catch (error: any) {
       console.error("Error saving property:", error);
@@ -203,9 +258,44 @@ export default function PropertySettings() {
   };
 
   // Save Basic Info section
-  const saveBasicInfo = async () => {
-    if (!property?.id) return;
+  const saveBasicInfo = async (e: React.MouseEvent) => {
+    e.preventDefault();
 
+    // Create new property if it doesn't exist yet
+    if (!property?.id) {
+      toast.info("Creating new property...");
+
+      // Get basic form data for new property
+      const basicData = {
+        name: watch("name") || "New Property",
+        property_type: watch("property_type"),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        const { data, error } = await supabase
+          .from("properties")
+          .insert([basicData])
+          .select();
+
+        if (error) throw error;
+
+        if (data && data[0]) {
+          setProperty(data[0]);
+          setPropertyId(data[0].id);
+          toast.success("New property created!");
+        }
+
+        return; // Exit function after creating property
+      } catch (err) {
+        console.error("Error creating property:", err);
+        toast.error("Failed to create property");
+        return;
+      }
+    }
+
+    // Normal update for existing property
     try {
       setIsSavingBasic(true);
 
@@ -222,9 +312,22 @@ export default function PropertySettings() {
         zip: watch("zip"),
         country: watch("country"),
         description: watch("description"),
+        updated_at: new Date().toISOString(),
       };
 
-      await updateProperty(property.id, basicInfoData);
+      const { data, error } = await supabase
+        .from("properties")
+        .update(basicInfoData)
+        .eq("id", property.id)
+        .select();
+
+      if (error) throw error;
+
+      // Update local state with the returned data
+      if (data && data[0]) {
+        setProperty({ ...property, ...data[0] });
+      }
+
       toast.success("Basic property info saved");
     } catch (error) {
       console.error("Error saving basic info:", error);
@@ -235,7 +338,8 @@ export default function PropertySettings() {
   };
 
   // Save Property Details section
-  const savePropertyDetails = async () => {
+  const savePropertyDetails = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Add this!
     if (!user || !property?.id) return;
 
     try {
@@ -271,7 +375,8 @@ export default function PropertySettings() {
   };
 
   // Save Location section
-  const saveLocation = async () => {
+  const saveLocation = async (e: React.MouseEvent) => {
+    e.preventDefault(); // Add this!
     if (!user || !property?.id) return;
 
     try {
@@ -295,7 +400,7 @@ export default function PropertySettings() {
       toast.success("Location information saved");
     } catch (error: any) {
       console.error("Error saving location info:", error);
-      toast.error(error.message || "Failed to save location info");
+      toast.error("Failed to save location info");
     } finally {
       setIsSavingLocation(false);
     }
@@ -410,7 +515,8 @@ export default function PropertySettings() {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Property Settings</h1>
             <button
-              onClick={handleSubmit(onSubmit)}
+              type="button"
+              onClick={handleSubmit(onSubmit)} // This ensures proper form validation
               disabled={isSaving}
               className={`
                 flex items-center px-4 py-2 rounded-md shadow-sm
@@ -671,6 +777,7 @@ export default function PropertySettings() {
                     </div>
                     <div className="flex justify-end mt-4">
                       <button
+                        type="button"
                         onClick={saveBasicInfo}
                         disabled={isSavingBasic}
                         className={`
@@ -863,6 +970,7 @@ export default function PropertySettings() {
                     </div>
                     <div className="flex justify-end mt-4">
                       <button
+                        type="button"
                         onClick={savePropertyDetails}
                         disabled={isSavingDetails}
                         className={`
@@ -948,6 +1056,7 @@ export default function PropertySettings() {
                     </div>
                     <div className="flex justify-end mt-4">
                       <button
+                        type="button"
                         onClick={saveLocation}
                         disabled={isSavingLocation}
                         className={`
