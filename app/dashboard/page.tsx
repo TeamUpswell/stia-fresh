@@ -6,6 +6,7 @@ import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
+import "@/styles/dashboard.css"; // Add this import
 import {
   Calendar,
   Clock,
@@ -201,18 +202,23 @@ export default function Dashboard() {
     async function setupStorageBucket() {
       try {
         // First check if bucket access works at all
-        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-        
+        const { data: buckets, error: listError } =
+          await supabase.storage.listBuckets();
+
         if (listError) {
           console.log("Not an admin user - skipping bucket creation");
           return; // Exit early as we likely don't have admin access
         }
-        
+
         // If we can list buckets, check if properties bucket exists
-        const propertiesBucket = buckets?.find(bucket => bucket.name === 'properties');
-        
+        const propertiesBucket = buckets?.find(
+          (bucket) => bucket.name === "properties"
+        );
+
         if (!propertiesBucket) {
-          console.log("Properties bucket doesn't exist, but may be created by admin");
+          console.log(
+            "Properties bucket doesn't exist, but may be created by admin"
+          );
           // Try uploading a test file - the bucket might exist even if we can't see it
           await testBucketAccess();
         } else {
@@ -231,13 +237,17 @@ export default function Dashboard() {
         const { error: uploadError } = await supabase.storage
           .from("properties")
           .upload("test-permission-check.txt", testFile, { upsert: true });
-          
+
         if (uploadError) {
-          console.log("Note: Cannot write to properties bucket - user has read-only access");
+          console.log(
+            "Note: Cannot write to properties bucket - user has read-only access"
+          );
         } else {
           console.log("Successfully wrote to properties bucket");
           // Clean up the test file
-          await supabase.storage.from('properties').remove(['test-permission-check.txt']);
+          await supabase.storage
+            .from("properties")
+            .remove(["test-permission-check.txt"]);
         }
       } catch (err) {
         console.log("Cannot access properties bucket for writing");
@@ -251,13 +261,13 @@ export default function Dashboard() {
   useEffect(() => {
     // This will refetch property data when the user navigates back to dashboard
     const handleFocus = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         loadPropertyData();
       }
     };
-    
-    document.addEventListener('visibilitychange', handleFocus);
-    return () => document.removeEventListener('visibilitychange', handleFocus);
+
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => document.removeEventListener("visibilitychange", handleFocus);
   }, []);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,18 +294,18 @@ export default function Dashboard() {
 
     try {
       let fileToUpload = file;
-      let fileExt = file.name.split(".").pop()?.toLowerCase() || 'jpg';
-      
+      let fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+
       // Check if WebP is supported and convert
       const webpSupported = await supportsWebP();
       if (webpSupported) {
         const optimizedBlob = await convertToWebP(file, 1920, 0.85);
         fileToUpload = new File([optimizedBlob], `property.webp`, {
-          type: 'image/webp'
+          type: "image/webp",
         });
-        fileExt = 'webp';
+        fileExt = "webp";
       }
-      
+
       // Create unique filename with UUID for reliability
       const fileName = `property-${uuidv4()}.${fileExt}`;
       const filePath = `${fileName}`;
@@ -398,7 +408,7 @@ export default function Dashboard() {
       }
 
       // Convert to WebP if supported, otherwise PNG
-      const format = await supportsWebP() ? 'webp' : 'png';
+      const format = (await supportsWebP()) ? "webp" : "png";
       const blob = await new Promise<Blob>((resolve) =>
         canvas.toBlob((blob) => resolve(blob!), `image/${format}`, 0.9)
       );
@@ -526,17 +536,19 @@ export default function Dashboard() {
                 <h1 className="text-3xl font-bold text-white mb-1">
                   {property?.name || "My Property"}
                 </h1>
-                
+
                 {/* Address added here over the hero image */}
                 {property?.address && (
                   <p className="text-white/90 mb-2">
                     {property.address}
                     {property.city && property.state && (
-                      <span>, {property.city}, {property.state} {property.zip}</span>
+                      <span>
+                        , {property.city}, {property.state} {property.zip}
+                      </span>
                     )}
                   </p>
                 )}
-                
+
                 <div className="flex flex-wrap gap-3 mb-2">
                   {property?.property_type && (
                     <span className="text-white/80 text-sm bg-black/30 px-2 py-0.5 rounded-full">
@@ -545,25 +557,20 @@ export default function Dashboard() {
                   )}
                   {property?.bedrooms && (
                     <span className="text-white/80 text-sm bg-black/30 px-2 py-0.5 rounded-full">
-                      {property.bedrooms} {property.bedrooms === 1 ? 'bed' : 'beds'}
+                      {property.bedrooms}{" "}
+                      {property.bedrooms === 1 ? "bed" : "beds"}
                     </span>
                   )}
                   {property?.bathrooms && (
                     <span className="text-white/80 text-sm bg-black/30 px-2 py-0.5 rounded-full">
-                      {property.bathrooms} {property.bathrooms === 1 ? 'bath' : 'baths'}
+                      {property.bathrooms}{" "}
+                      {property.bathrooms === 1 ? "bath" : "baths"}
                     </span>
                   )}
                 </div>
               </div>
-              
-              <Link
-                href="/admin/property"
-                className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md shadow-lg flex items-center"
-              >
-                <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-              </Link>
             </div>
-            
+
             <p className="text-white/80 mt-1">
               Welcome, {user?.email?.split("@")[0] || "Guest"}! Here&apos;s
               what&apos;s happening today.
@@ -749,19 +756,28 @@ export default function Dashboard() {
         {property && (property.latitude || property.longitude) && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Property Location</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Property Location
+              </h2>
               {property.address && (
                 <span className="text-sm text-gray-500">
-                  {property.address}, {property.city}, {property.state} {property.zip}
+                  {property.address}, {property.city}, {property.state}{" "}
+                  {property.zip}
                 </span>
               )}
             </div>
-            
+
             <div className="bg-white rounded-lg shadow overflow-hidden">
-              <PropertyMap 
-                latitude={property.latitude} 
-                longitude={property.longitude} 
-                address={property.address ? `${property.address}${property.city ? `, ${property.city}` : ''}${property.state ? `, ${property.state}` : ''}` : undefined}
+              <PropertyMap
+                latitude={property.latitude}
+                longitude={property.longitude}
+                address={
+                  property.address
+                    ? `${property.address}${
+                        property.city ? `, ${property.city}` : ""
+                      }${property.state ? `, ${property.state}` : ""}`
+                    : undefined
+                }
                 height="400px"
                 className="w-full rounded-lg overflow-hidden"
               />

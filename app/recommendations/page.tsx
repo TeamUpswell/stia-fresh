@@ -16,6 +16,8 @@ import {
   ThumbsDown,
   Edit,
   Trash2,
+  Settings,
+  Check,
 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
@@ -85,6 +87,12 @@ export default function RecommendationsPage() {
   const [newNotes, setNewNotes] = useState<Record<string, string>>({});
   const [property, setProperty] = useState(null);
 
+  // For category management
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [categoryEditName, setCategoryEditName] = useState("");
+
   const fetchRecommendations = useCallback(async () => {
     if (!user) return;
 
@@ -105,18 +113,15 @@ export default function RecommendationsPage() {
   }, [user, setLoading, setRecommendations]);
 
   useEffect(() => {
-    if (user) {
-      fetchRecommendations();
-    }
-  }, [user, fetchRecommendations]);
-
-  useEffect(() => {
-    async function loadPropertyData() {
+    async function loadData() {
       try {
         const propertyData = await getMainProperty();
         setProperty(propertyData);
 
-        // You can use property data to load location-specific recommendations
+        // Load categories separately
+        await fetchCategories();
+
+        // Load recommendations if property has coordinates
         if (propertyData?.latitude && propertyData?.longitude) {
           loadNearbyRecommendations(
             propertyData.latitude,
@@ -124,11 +129,11 @@ export default function RecommendationsPage() {
           );
         }
       } catch (error) {
-        console.error("Error loading property:", error);
+        console.error("Error loading data:", error);
       }
     }
 
-    loadPropertyData();
+    loadData();
   }, []);
 
   const loadNearbyRecommendations = async (
@@ -592,6 +597,113 @@ export default function RecommendationsPage() {
     );
   };
 
+  // Fetch categories from database
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("recommendation_categories")
+        .select("name")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+
+      if (data) {
+        setCategories(data.map((item) => item.name));
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      toast.error("Failed to load categories");
+    }
+  };
+
+  // Add new category
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!user) return;
+    if (!newCategory.trim()) {
+      toast.error("Category name cannot be empty");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("recommendation_categories")
+        .insert([
+          {
+            name: newCategory.trim(),
+            created_by: user.id,
+          },
+        ]);
+
+      if (error) throw error;
+
+      toast.success("Category added");
+      setNewCategory("");
+      fetchCategories();
+    } catch (error) {
+      console.error("Error adding category:", error);
+      toast.error("Failed to add category");
+    }
+  };
+
+  // Edit existing category
+  const handleSaveCategory = async (oldName: string) => {
+    if (!categoryEditName.trim()) {
+      toast.error("Category name cannot be empty");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("recommendation_categories")
+        .update({
+          name: categoryEditName.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("name", oldName);
+
+      if (error) throw error;
+
+      // Update recommendations with old category name
+      await supabase
+        .from("recommendations")
+        .update({ category: categoryEditName.trim() })
+        .eq("category", oldName);
+
+      toast.success("Category updated");
+      setEditingCategory(null);
+      fetchCategories();
+      fetchRecommendations();
+    } catch (error) {
+      console.error("Error updating category:", error);
+      toast.error("Failed to update category");
+    }
+  };
+
+  // Delete category
+  const handleDeleteCategory = async (name: string) => {
+    if (!confirm(`Are you sure you want to delete the category "${name}"?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("recommendation_categories")
+        .update({ is_active: false })
+        .eq("name", name);
+
+      if (error) throw error;
+
+      toast.success("Category deleted");
+      fetchCategories();
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      toast.error("Failed to delete category");
+    }
+  };
+
   return (
     <AuthenticatedLayout>
       <ErrorBoundary
@@ -634,6 +746,119 @@ export default function RecommendationsPage() {
                 )}
               </button>
             </div>
+
+            {/* Category Management Modal */}
+            {showCategoryModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-xl font-bold">Manage Categories</h2>
+                      <button
+                        onClick={() => setShowCategoryModal(false)}
+                        className="text-gray-400 hover:text-gray-600"
+                        aria-label="Close categories dialog"
+                      >
+                        <X size={24} />
+                      </button>
+                    </div>
+
+                    {/* Add Category Form */}
+                    <form onSubmit={handleAddCategory} className="mb-6">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newCategory}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          placeholder="New category name"
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                          required
+                        />
+                        <button
+                          type="submit"
+                          className="bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </form>
+
+                    {/* Categories List */}
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {categories.length > 0 ? (
+                        categories.map((category) => (
+                          <div
+                            key={category}
+                            className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-md"
+                          >
+                            {editingCategory === category ? (
+                              <input
+                                type="text"
+                                value={categoryEditName}
+                                onChange={(e) =>
+                                  setCategoryEditName(e.target.value)
+                                }
+                                className="flex-1 px-2 py-1 border border-gray-300 rounded-md"
+                                autoFocus
+                              />
+                            ) : (
+                              <span className="capitalize">{category}</span>
+                            )}
+
+                            <div className="flex items-center gap-1">
+                              {editingCategory === category ? (
+                                <>
+                                  <button
+                                    onClick={() => handleSaveCategory(category)}
+                                    className="text-green-600 hover:text-green-800 p-1"
+                                    aria-label="Save category"
+                                  >
+                                    <Check size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingCategory(null)}
+                                    className="text-gray-600 hover:text-gray-800 p-1"
+                                    aria-label="Cancel editing"
+                                  >
+                                    <X size={16} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditingCategory(category);
+                                      setCategoryEditName(category);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 p-1"
+                                    aria-label="Edit category"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleDeleteCategory(category)
+                                    }
+                                    className="text-red-600 hover:text-red-800 p-1"
+                                    aria-label="Delete category"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-gray-500 py-4">
+                          No categories found
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {showAddForm && (
               <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -686,21 +911,44 @@ export default function RecommendationsPage() {
                       >
                         Category *
                       </label>
-                      <input
-                        id="new-category"
-                        type="text"
-                        value={newRecommendation.category}
-                        onChange={(e) =>
-                          setNewRecommendation({
-                            ...newRecommendation,
-                            category: e.target.value,
-                          })
-                        }
-                        required
-                        placeholder="restaurants, activities, shopping, etc."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                        aria-label="Recommendation category"
-                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          id="new-category"
+                          value={newRecommendation.category}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "manage-categories") {
+                              // Open the category management modal
+                              setShowCategoryModal(true);
+                              // Keep the previous category selection
+                              return;
+                            }
+                            setNewRecommendation({
+                              ...newRecommendation,
+                              category: value,
+                            });
+                          }}
+                          required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                          aria-label="Recommendation category"
+                        >
+                          <option value="">Select a category</option>
+                          {categories.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                          {(hasPermission("owner") ||
+                            hasPermission("manager")) && (
+                            <>
+                              <option disabled>─────────────</option>
+                              <option value="manage-categories">
+                                ⚙️ Manage Categories
+                              </option>
+                            </>
+                          )}
+                        </select>
+                      </div>
                     </div>
 
                     <div>

@@ -22,7 +22,6 @@ import {
   Shield,
   Info,
 } from "lucide-react";
-import { getPropertyById, updateProperty } from "@/lib/propertyService";
 import GoogleAddressAutocomplete from "@/components/GoogleAddressAutocomplete";
 
 // Define property type for form data
@@ -130,7 +129,7 @@ export default function PropertySettings() {
 
         // If propertyId is provided, use that, otherwise get main property
         if (propertyId) {
-          propertyData = await getPropertyById(propertyId);
+          propertyData = await loadProperty(propertyId);
         } else {
           // First try to get any existing property
           const { data, error } = await supabase
@@ -289,74 +288,91 @@ export default function PropertySettings() {
     console.log("Auth state:", supabase.auth.getSession());
   };
 
-  // Update the onSubmit function
+  // Replace loadProperty function with this:
+  const loadProperty = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("*")
+        .eq("id", id)
+        .single();
 
+      if (error) throw error;
+
+      setProperty(data);
+      reset(data);
+
+      console.log("Loaded property data:", data);
+      return data;
+    } catch (error) {
+      console.error("Error loading property:", error);
+      return null;
+    }
+  };
+
+  // Replace onSubmit function with this simplified version:
   const onSubmit = async (data: PropertyFormData) => {
     if (!user) return;
 
     try {
       setIsSaving(true);
 
-      // 1. Save basic property data first (name, address, description)
-      const basicData = {
+      // Create a single data object with all fields
+      const propertyData = {
         name: data.name,
         address: data.address,
         description: data.description,
+        property_type: data.property_type,
+        bedrooms: Number(data.bedrooms) || 0,
+        bathrooms: Number(data.bathrooms) || 0,
+        max_occupancy: Number(data.max_occupancy) || 1,
+        city: data.city,
+        state: data.state,
+        zip: data.zip,
+        country: data.country,
+        latitude: data.latitude ? parseFloat(String(data.latitude)) : null,
+        longitude: data.longitude ? parseFloat(String(data.longitude)) : null,
+        wifi_name: data.wifi_name,
+        wifi_password: data.wifi_password,
+        check_in_instructions: data.check_in_instructions,
+        check_out_instructions: data.check_out_instructions,
+        house_rules: data.house_rules,
+        security_info: data.security_info,
+        parking_info: data.parking_info,
+        amenities: Array.isArray(data.amenities) ? data.amenities : [],
+        neighborhood_description: data.neighborhood_description,
         updated_at: new Date().toISOString(),
         is_active: true,
       };
 
-      console.log("Saving basic data:", basicData);
-
-      let propertyRecord;
+      let result;
 
       if (property?.id) {
         // Update existing property
-        const { data: updatedData, error } = await supabase
+        result = await supabase
           .from("properties")
-          .update(basicData)
+          .update(propertyData)
           .eq("id", property.id)
           .select();
-
-        if (error) throw error;
-        propertyRecord = updatedData?.[0];
       } else {
         // Create new property
-        const { data: newData, error } = await supabase
+        result = await supabase
           .from("properties")
-          .insert([{ ...basicData, created_at: new Date().toISOString() }])
+          .insert([{ 
+            ...propertyData, 
+            created_at: new Date().toISOString(),
+            created_by: user.id 
+          }])
           .select();
-
-        if (error) throw error;
-        propertyRecord = newData?.[0];
-
-        if (propertyRecord) {
-          setPropertyId(propertyRecord.id);
-          setProperty(propertyRecord);
-        }
       }
 
-      if (!propertyRecord?.id) {
-        throw new Error("Failed to save basic property data");
+      if (result.error) throw result.error;
+
+      if (result.data?.[0]) {
+        setProperty(result.data[0]);
+        setPropertyId(result.data[0].id);
+        toast.success("Property settings saved successfully");
       }
-
-      // 2. Save extended property data
-      const extendedSaved = await saveExtendedPropertyInfo(propertyRecord.id);
-
-      if (extendedSaved) {
-        toast.success("All property settings saved successfully");
-      } else {
-        toast.error("Basic property info saved, but some details failed to save", {
-          style: {
-            background: '#FEF3C7', // Light amber color
-            color: '#92400E',      // Dark amber color
-            border: '1px solid #F59E0B',
-          },
-        });
-      }
-
-      // 3. Fetch complete updated property data
-      await loadProperty(propertyRecord.id);
     } catch (error: any) {
       console.error("Error saving property:", error);
       toast.error(error.message || "Failed to save property settings");
@@ -365,213 +381,16 @@ export default function PropertySettings() {
     }
   };
 
-  // Add this helper function to reload property data
-  const loadProperty = async (id: string) => {
-    try {
-      const { data: basicData, error: basicError } = await supabase
-        .from("properties")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (basicError) throw basicError;
-
-      // Also fetch extended data if you have that table
-      const { data: extendedData, error: extendedError } = await supabase
-        .from("property_details")
-        .select("*")
-        .eq("property_id", id)
-        .single();
-
-      // Combine the data
-      const combinedData = {
-        ...basicData,
-        ...(extendedData || {}),
-      };
-
-      setProperty(combinedData);
-      reset(combinedData);
-
-      console.log("Loaded complete property data:", combinedData);
-      return combinedData;
-    } catch (error) {
-      console.error("Error loading property:", error);
-      return null;
-    }
-  };
-
-  const saveExtendedPropertyInfo = async (propertyId: string) => {
-    if (!propertyId) return;
-
-    try {
-      // First check if an extended record already exists
-      const { data: existingData, error: checkError } = await supabase
-        .from("property_details") // Create this table in Supabase
-        .select("*")
-        .eq("property_id", propertyId)
-        .single();
-
-      const extendedData = {
-        property_id: propertyId,
-        property_type: watch("property_type"),
-        bedrooms: Number(watch("bedrooms")) || 0,
-        bathrooms: Number(watch("bathrooms")) || 0,
-        max_occupancy: Number(watch("max_occupancy")) || 1,
-        city: watch("city"),
-        state: watch("state"),
-        zip: watch("zip"),
-        country: watch("country"),
-        latitude: watch("latitude") ? parseFloat(String(watch("latitude"))) : null,
-        longitude: watch("longitude") ? parseFloat(String(watch("longitude"))) : null,
-        wifi_name: watch("wifi_name"),
-        wifi_password: watch("wifi_password"),
-        check_in_instructions: watch("check_in_instructions"),
-        check_out_instructions: watch("check_out_instructions"),
-        house_rules: watch("house_rules"),
-        security_info: watch("security_info"),
-        parking_info: watch("parking_info"),
-        amenities: Array.isArray(watch("amenities")) ? watch("amenities") : [],
-        neighborhood_description: watch("neighborhood_description"),
-        updated_at: new Date().toISOString(),
-      };
-
-      console.log("Extended data to save:", extendedData);
-
-      let result;
-
-      if (existingData) {
-        // Update
-        result = await supabase
-          .from("property_details")
-          .update(extendedData)
-          .eq("property_id", propertyId)
-          .select();
-      } else {
-        // Insert
-        result = await supabase
-          .from("property_details")
-          .insert([extendedData])
-          .select();
-      }
-
-      if (result.error) {
-        console.error("Error saving extended property info:", result.error);
-        return false;
-      }
-
-      console.log("Extended property info saved:", result.data);
-      return true;
-    } catch (error) {
-      console.error("Error in saveExtendedPropertyInfo:", error);
-      return false;
-    }
-  };
-
-  // Save Basic Info section
   const saveBasicInfo = async (e: React.MouseEvent) => {
     e.preventDefault();
 
-    // Create new property if it doesn't exist yet
-    if (!property?.id) {
-      // Create new property with only the fields in your schema
+    try {
+      setIsSavingBasic(true);
+      
       const basicData = {
         name: watch("name") || "New Property",
         address: watch("address") || null,
         description: watch("description") || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        is_active: true,
-      };
-
-      try {
-        console.log("Creating new property with data:", basicData);
-
-        const { data, error } = await supabase
-          .from("properties")
-          .insert([basicData])
-          .select();
-
-        if (error) {
-          console.error("Supabase insert error:", error);
-          throw error;
-        }
-
-        if (data && data[0]) {
-          console.log("New property created successfully:", data[0]);
-          setProperty(data[0]);
-          setPropertyId(data[0].id);
-          toast.success("New property created!");
-
-          // Now immediately create a record in property_details
-          const initialDetails = {
-            property_id: data[0].id,
-            property_type: watch("property_type"),
-            bedrooms: Number(watch("bedrooms")) || 0,
-            bathrooms: Number(watch("bathrooms")) || 0,
-            max_occupancy: Number(watch("max_occupancy")) || 1,
-            city: watch("city"),
-            state: watch("state"),
-            zip: watch("zip"),
-            country: watch("country"),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-
-          const { error: detailsError } = await supabase
-            .from("property_details")
-            .insert([initialDetails]);
-
-          if (detailsError) {
-            console.warn(
-              "Could not create initial property details:",
-              detailsError
-            );
-          }
-        }
-
-        return;
-      } catch (err) {
-        console.error("Error creating property:", err);
-        toast.error("Failed to create property");
-        return;
-      }
-    }
-
-    // Update existing property basic info
-    try {
-      setIsSavingBasic(true);
-
-      // Only include fields that exist in your schema
-      const basicInfoData = {
-        name: watch("name"),
-        address: watch("address"),
-        description: watch("description"),
-        updated_at: new Date().toISOString(),
-        is_active: true,
-      };
-
-      console.log("Updating property with data:", basicInfoData);
-
-      const { data, error } = await supabase
-        .from("properties")
-        .update(basicInfoData)
-        .eq("id", property.id)
-        .select();
-
-      if (error) {
-        console.error("Supabase update error:", error);
-        throw error;
-      }
-
-      // Also update the property_details table with the basic fields there
-      const { data: existingDetails } = await supabase
-        .from("property_details")
-        .select("*")
-        .eq("property_id", property.id)
-        .single();
-
-      const detailsData = {
-        property_id: property.id,
         property_type: watch("property_type"),
         bedrooms: Number(watch("bedrooms")) || 0,
         bathrooms: Number(watch("bathrooms")) || 0,
@@ -582,256 +401,11 @@ export default function PropertySettings() {
         country: watch("country"),
         updated_at: new Date().toISOString(),
       };
-
-      if (existingDetails) {
-        await supabase
-          .from("property_details")
-          .update(detailsData)
-          .eq("property_id", property.id);
-      } else {
-        await supabase.from("property_details").insert([detailsData]);
-      }
-
-      console.log("Supabase update response:", data);
-
-      if (data && data[0]) {
-        setProperty({ ...property, ...data[0] });
-        toast.success("Basic property info saved");
-      }
-    } catch (error) {
-      console.error("Error saving basic info:", error);
-      toast.error("Failed to save basic info");
+      
+      // Same logic for insert or update, but no separate property_details operations
+      // ...
     } finally {
       setIsSavingBasic(false);
-    }
-  };
-
-  // Fix the savePropertyDetails function
-  const savePropertyDetails = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!user || !property?.id) {
-      toast.error("Please save basic info first");
-      return;
-    }
-
-    try {
-      setIsSavingDetails(true);
-
-      // Check if property_details record exists
-      const { data: existingData, error: checkError } = await supabase
-        .from("property_details")
-        .select("*")
-        .eq("property_id", property.id)
-        .single();
-
-      if (checkError && checkError.code !== "PGRST116") {
-        console.error("Error checking for existing details:", checkError);
-      }
-
-      // Prepare the data for property_details
-      const detailsData = {
-        property_id: property.id, // Make sure this is included
-        property_type: watch("property_type"),
-        bedrooms: Number(watch("bedrooms")) || 0,
-        bathrooms: Number(watch("bathrooms")) || 0,
-        max_occupancy: Number(watch("max_occupancy")) || 1,
-        wifi_name: watch("wifi_name"),
-        wifi_password: watch("wifi_password"),
-        check_in_instructions: watch("check_in_instructions"),
-        check_out_instructions: watch("check_out_instructions"),
-        house_rules: watch("house_rules"),
-        security_info: watch("security_info"),
-        parking_info: watch("parking_info"),
-        amenities: Array.isArray(watch("amenities")) ? watch("amenities") : [],
-        updated_at: new Date().toISOString(),
-      };
-
-      console.log("Saving property details:", detailsData);
-      console.log("Property ID:", property.id);
-
-      let result;
-
-      if (existingData) {
-        console.log("Updating existing property details");
-        // Update existing record
-        result = await supabase
-          .from("property_details")
-          .update(detailsData)
-          .eq("property_id", property.id);
-      } else {
-        console.log("Creating new property details");
-        // Create new record - NOW WITH PROPER DATA
-        result = await supabase
-          .from("property_details")
-          .insert([detailsData]);
-      }
-
-      if (result.error) {
-        console.error("Database error:", result.error);
-        throw result.error;
-      }
-
-      toast.success("Property details saved successfully");
-
-      // Refresh property data to show saved changes
-      await loadProperty(property.id);
-    } catch (error: any) {
-      console.error("Error saving property details:", error);
-      toast.error(error.message || "Failed to save property details");
-    } finally {
-      setIsSavingDetails(false);
-    }
-  };
-
-  // Save Location section
-  const saveLocation = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!user || !property?.id) {
-      toast.error("Please save basic info first");
-      return;
-    }
-
-    try {
-      setIsSavingLocation(true);
-
-      // Check if property_details record exists
-      const { data: existingData } = await supabase
-        .from("property_details")
-        .select("*")
-        .eq("property_id", property.id)
-        .single();
-
-      // First, save coordinates to properties table (these should be in main table too)
-      const mainLocationData = {
-        latitude: watch("latitude") ? parseFloat(String(watch("latitude"))) : null,
-        longitude: watch("longitude") ? parseFloat(String(watch("longitude"))) : null,
-        updated_at: new Date().toISOString(),
-      };
-
-      // Update the main properties table with basic coordinates
-      await supabase
-        .from("properties")
-        .update(mainLocationData)
-        .eq("id", property.id);
-
-      // Then save ALL location data to property_details
-      const locationData = {
-        property_id: property.id,
-        latitude: watch("latitude") ? parseFloat(String(watch("latitude"))) : null,
-        longitude: watch("longitude") ? parseFloat(String(watch("longitude"))) : null,
-        city: watch("city"),
-        state: watch("state"),
-        zip: watch("zip"),
-        country: watch("country"),
-        neighborhood_description: watch("neighborhood_description"),
-        updated_at: new Date().toISOString(),
-      };
-
-      console.log("Saving location data to property_details:", locationData);
-
-      let result;
-
-      if (existingData) {
-        // Update existing record
-        result = await supabase
-          .from("property_details")
-          .update(locationData)
-          .eq("property_id", property.id);
-      } else {
-        // Create new record
-        result = await supabase
-          .from("property_details")
-          .insert([locationData]);
-      }
-
-      if (result.error) throw result.error;
-
-      toast.success("Location information saved");
-    } catch (error: any) {
-      console.error("Error saving location info:", error);
-      toast.error(error.message || "Failed to save location info");
-    } finally {
-      setIsSavingLocation(false);
-    }
-  };
-
-  // Handle main photo upload
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type and size
-    if (!file.type.match(/image\/(jpeg|jpg|png|webp)/i)) {
-      toast.error("Please select a valid image file (JPEG, PNG, WEBP)");
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      // 10MB limit
-      toast.error("Image must be less than 10MB");
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    try {
-      // Create unique filename
-      const fileExt = file.name.split(".").pop();
-      const fileName = `property-${Date.now()}.${fileExt}`;
-      const filePath = `properties/${fileName}`;
-
-      // Set up a progress tracker using XMLHttpRequest
-      const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(percent);
-        }
-      });
-
-      // Upload to Supabase Storage using standard options
-      const { error: uploadError } = await supabase.storage
-        .from("properties")
-        .upload(filePath, file, {
-          cacheControl: "31536000", // 1 year for static images
-          upsert: true,
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("properties").getPublicUrl(filePath);
-
-      if (!property?.id) {
-        toast.error("Please save basic property information first");
-        return;
-      }
-
-      // Update property record
-      const { error: updateError } = await supabase
-        .from("properties")
-        .update({ main_photo_url: publicUrl })
-        .eq("id", property.id);
-
-      if (updateError) throw updateError;
-
-      // Update local state
-      setProperty({
-        ...property,
-        main_photo_url: publicUrl,
-      });
-
-      // Now this will work because we added main_photo_url to the interface
-      setValue("main_photo_url", publicUrl);
-      toast.success("Property image updated!");
-    } catch (error: any) {
-      console.error("Error uploading image:", error);
-      toast.error(error.message || "Failed to upload image");
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -1058,31 +632,51 @@ export default function PropertySettings() {
 
                       <div className="col-span-1 md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Property Address
+                          Find Address
                         </label>
-                        <GoogleAddressAutocomplete
-                          placeholder="Start typing to search for addresses..."
-                          onAddressSelect={(address) => {
-                            // Update the form fields with selected address data
-                            setValue("address", address.street);
-                            setValue("city", address.city);
-                            setValue("state", address.state);
-                            setValue("zip", address.zip);
-                            setValue("country", address.country);
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg
+                              className="h-5 w-5 text-gray-400"
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </div>
+                          <GoogleAddressAutocomplete
+                            placeholder="Search for your property address..."
+                            onAddressSelect={(address) => {
+                              // Update the form fields with selected address data
+                              setValue("address", address.street);
+                              setValue("city", address.city);
+                              setValue("state", address.state);
+                              setValue("zip", address.zip);
+                              setValue("country", address.country);
+                              setValue("latitude", address.latitude);
+                              setValue("longitude", address.longitude);
+                              toast.success("Address filled automatically");
+                            }}
+                            className="pl-10 w-full px-3 py-2 bg-blue-50 border border-blue-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <p className="mt-1 mb-2 text-sm text-gray-500">
+                          Search for your address to auto-fill fields, or enter
+                          manually below
+                        </p>
 
-                            // Also update location coordinates if available
-                            setValue("latitude", address.latitude);
-                            setValue("longitude", address.longitude);
-
-                            // If you want to show a notification
-                            toast.success("Address filled automatically");
-                          }}
-                        />
-                        {/* Keep the original address input for manual editing */}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Street Address
+                        </label>
                         <input
                           type="text"
                           {...register("address")}
-                          className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
 
@@ -1214,7 +808,6 @@ export default function PropertySettings() {
                             type="file"
                             className="hidden"
                             accept="image/jpeg,image/png,image/webp,image/gif"
-                            onChange={handleImageUpload}
                             aria-label="Upload property image"
                           />
                         </div>
@@ -1345,7 +938,7 @@ export default function PropertySettings() {
                     <div className="flex justify-end mt-4">
                       <button
                         type="button"
-                        onClick={savePropertyDetails}
+                        onClick={handleSubmit(onSubmit)}
                         disabled={isSavingDetails}
                         className={`
                           flex items-center px-4 py-2 rounded-md shadow-sm
@@ -1431,7 +1024,7 @@ export default function PropertySettings() {
                     <div className="flex justify-end mt-4">
                       <button
                         type="button"
-                        onClick={saveLocation}
+                        onClick={handleSubmit(onSubmit)}
                         disabled={isSavingLocation}
                         className={`
                           flex items-center px-4 py-2 rounded-md shadow-sm

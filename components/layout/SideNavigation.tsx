@@ -149,7 +149,7 @@ export default function SideNavigation({ user }: SideNavigationProps) {
         <div className="relative h-16 w-40">
           <Image
             src={
-              isDarkMode ? "/images/logo-white.svg" : "/images/logo-dark.svg"
+              isDarkMode ? "/images/logo-dark.svg" : "/images/logo-white.svg"
             }
             alt="Stia Logo"
             fill
@@ -167,14 +167,9 @@ export default function SideNavigation({ user }: SideNavigationProps) {
 
           return (
             <div key={section.category} className="space-y-1.5">
-              {/* Category Header - Updated Style */}
-              <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                {section.category}
-              </div>
-
               <button
                 onClick={() => toggleCategory(section.category)}
-                className={`w-full flex items-center justify-between text-left text-sm font-medium ${
+                className={`w-full flex items-center justify-between text-left text-sm font-medium px-4 py-2 ${
                   isDarkMode
                     ? "text-gray-300 hover:text-white"
                     : "text-gray-600 hover:text-gray-900"
