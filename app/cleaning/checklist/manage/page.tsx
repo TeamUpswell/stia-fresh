@@ -1,0 +1,436 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthProvider";
+import { supabase } from "@/lib/supabase";
+import PermissionGate from "@/components/PermissionGate";
+import SideNavigation from "@/components/layout/SideNavigation";
+import { ClipboardList, Settings, Edit, Trash2, Plus, Check, X, MoveUp, MoveDown } from "lucide-react";
+
+export default function ManageChecklistsPage() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const [checklists, setChecklists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [editingChecklist, setEditingChecklist] = useState(null);
+  const [newChecklist, setNewChecklist] = useState({ name: "", description: "" });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [checklistToDelete, setChecklistToDelete] = useState(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Define navigation items (same as in main cleaning page)
+  const cleaningNavItems = [
+    { name: "Cleaning Schedule", href: "/cleaning", icon: ClipboardList },
+    { 
+      name: "Manage Checklists", 
+      href: "/cleaning/checklist/manage", 
+      icon: Settings,
+      requiredRole: "manager"
+    }
+  ];
+
+  // Fetch checklists
+  useEffect(() => {
+    async function fetchChecklists() {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from("cleaning_checklists")
+          .select("*, cleaning_checklist_items(*)") // Get checklists with their items
+          .order("id", { ascending: true });
+
+        if (error) throw error;
+        setChecklists(data || []);
+      } catch (error) {
+        console.error("Error fetching checklists:", error);
+        setError("Failed to load checklists");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchChecklists();
+  }, [user]);
+
+  // Create new checklist
+  const createChecklist = async (e) => {
+    e.preventDefault();
+    if (!newChecklist.name.trim()) {
+      setError("Checklist name is required");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("cleaning_checklists")
+        .insert({
+          name: newChecklist.name,
+          description: newChecklist.description,
+          created_by: user.id
+        })
+        .select();
+
+      if (error) throw error;
+
+      // Add to state (optimistic update)
+      setChecklists([...checklists, {...data[0], cleaning_checklist_items: []}]);
+      setNewChecklist({ name: "", description: "" });
+      setSuccess("Checklist created successfully");
+      setTimeout(() => setSuccess(""), 3000);
+
+    } catch (error) {
+      console.error("Error creating checklist:", error);
+      setError("Failed to create checklist");
+    }
+  };
+
+  // Update existing checklist
+  const updateChecklist = async (e) => {
+    e.preventDefault();
+    if (!editingChecklist.name.trim()) {
+      setError("Checklist name is required");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("cleaning_checklists")
+        .update({
+          name: editingChecklist.name,
+          description: editingChecklist.description
+        })
+        .eq("id", editingChecklist.id);
+
+      if (error) throw error;
+
+      // Update state
+      setChecklists(checklists.map(cl => 
+        cl.id === editingChecklist.id 
+          ? {...cl, name: editingChecklist.name, description: editingChecklist.description} 
+          : cl
+      ));
+      
+      setEditingChecklist(null);
+      setSuccess("Checklist updated successfully");
+      setTimeout(() => setSuccess(""), 3000);
+
+    } catch (error) {
+      console.error("Error updating checklist:", error);
+      setError("Failed to update checklist");
+    }
+  };
+
+  // Delete checklist
+  const deleteChecklist = async () => {
+    if (!checklistToDelete) return;
+
+    try {
+      // Delete all items first (if not handled by cascade)
+      await supabase
+        .from("cleaning_checklist_items")
+        .delete()
+        .eq("checklist_id", checklistToDelete.id);
+      
+      // Then delete the checklist
+      const { error } = await supabase
+        .from("cleaning_checklists")
+        .delete()
+        .eq("id", checklistToDelete.id);
+
+      if (error) throw error;
+
+      // Update state
+      setChecklists(checklists.filter(cl => cl.id !== checklistToDelete.id));
+      setChecklistToDelete(null);
+      setShowDeleteModal(false);
+      setSuccess("Checklist deleted successfully");
+      setTimeout(() => setSuccess(""), 3000);
+
+    } catch (error) {
+      console.error("Error deleting checklist:", error);
+      setError("Failed to delete checklist");
+    }
+  };
+
+  // Edit checklist items
+  const handleEditItems = (checklist) => {
+    router.push(`/cleaning/checklist/manage/items/${checklist.id}`);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <SideNavigation user={user} />
+        <div className="lg:pl-64 flex flex-col flex-1">
+          <main className="flex-1">
+            <div className="p-6 flex justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <SideNavigation user={user} />
+      <div className="lg:pl-64 flex flex-col flex-1">
+        <main className="flex-1">
+          <PermissionGate 
+            requiredRole="manager" 
+            fallback={
+              <div className="p-6">You don't have permission to manage checklists.</div>
+            }
+          >
+            <div className="px-4 py-8">
+              <h1 className="text-2xl font-semibold mb-6">Cleaning Management</h1>
+              
+              {/* Tab-style navigation - directly in the page */}
+              <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+                <nav className="flex -mb-px space-x-8">
+                  {cleaningNavItems.map((item) => {
+                    const isActive = item.href === "/cleaning" 
+                      ? pathname === item.href 
+                      : pathname.startsWith(item.href);
+                    const IconComponent = item.icon;
+
+                    // Wrap with PermissionGate if required role is specified
+                    const linkElement = (
+                      <Link
+                        key={item.name}
+                        href={item.href}
+                        className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+                          isActive
+                            ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                            : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                        }`}
+                      >
+                        <IconComponent
+                          className={`mr-2 h-4 w-4 ${
+                            isActive
+                              ? "text-blue-500 dark:text-blue-400"
+                              : "text-gray-400"
+                          }`}
+                        />
+                        {item.name}
+                      </Link>
+                    );
+
+                    // If item requires specific role, wrap with PermissionGate
+                    if (item.requiredRole) {
+                      return (
+                        <PermissionGate key={item.name} requiredRole={item.requiredRole}>
+                          {linkElement}
+                        </PermissionGate>
+                      );
+                    }
+                    
+                    return linkElement;
+                  })}
+                </nav>
+              </div>
+              
+              {/* Rest of your manage checklists content */}
+              <h2 className="text-xl font-bold mb-6">Manage Cleaning Checklists</h2>
+              
+              {error && (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                  {error}
+                </div>
+              )}
+              
+              {success && (
+                <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                  {success}
+                </div>
+              )}
+              
+              {/* Create new checklist form */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <h2 className="text-xl font-semibold mb-4">Create New Checklist</h2>
+                <form onSubmit={createChecklist} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Checklist Name
+                    </label>
+                    <input 
+                      type="text"
+                      value={newChecklist.name}
+                      onChange={(e) => setNewChecklist({...newChecklist, name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                      placeholder="e.g., Garage Cleaning"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Description (Optional)
+                    </label>
+                    <textarea
+                      value={newChecklist.description}
+                      onChange={(e) => setNewChecklist({...newChecklist, description: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                      rows={3}
+                      placeholder="Brief description of this checklist"
+                    />
+                  </div>
+                  
+                  <div>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center"
+                    >
+                      <Plus size={18} className="mr-1" />
+                      Create Checklist
+                    </button>
+                  </div>
+                </form>
+              </div>
+              
+              {/* Existing checklists */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 className="text-xl font-semibold mb-4">Existing Checklists</h2>
+                
+                {checklists.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400">No checklists created yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {checklists.map((checklist) => (
+                      <div 
+                        key={checklist.id} 
+                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                      >
+                        {editingChecklist?.id === checklist.id ? (
+                          <form onSubmit={updateChecklist} className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Name
+                              </label>
+                              <input 
+                                type="text"
+                                value={editingChecklist.name}
+                                onChange={(e) => setEditingChecklist({...editingChecklist, name: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                              />
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Description
+                              </label>
+                              <textarea
+                                value={editingChecklist.description || ""}
+                                onChange={(e) => setEditingChecklist({...editingChecklist, description: e.target.value})}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                                rows={3}
+                              />
+                            </div>
+                            
+                            <div className="flex space-x-2">
+                              <button
+                                type="submit"
+                                className="px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center"
+                              >
+                                <Check size={16} className="mr-1" />
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingChecklist(null)}
+                                className="px-3 py-1 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 flex items-center"
+                              >
+                                <X size={16} className="mr-1" />
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h3 className="font-semibold text-lg">{checklist.name}</h3>
+                                {checklist.description && (
+                                  <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+                                    {checklist.description}
+                                  </p>
+                                )}
+                                <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">
+                                  Items: {checklist.cleaning_checklist_items.length}
+                                </p>
+                              </div>
+                              
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEditItems(checklist)}
+                                  className="px-3 py-1 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 flex items-center"
+                                >
+                                  <Edit size={16} className="mr-1" />
+                                  Items
+                                </button>
+                                <button
+                                  onClick={() => setEditingChecklist(checklist)}
+                                  className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center"
+                                >
+                                  <Edit size={16} className="mr-1" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setChecklistToDelete(checklist);
+                                    setShowDeleteModal(true);
+                                  }}
+                                  className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 flex items-center"
+                                >
+                                  <Trash2 size={16} className="mr-1" />
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </PermissionGate>
+        </main>
+      </div>
+      
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+            <h3 className="text-xl font-bold mb-4">Delete Checklist</h3>
+            <p className="mb-6">
+              Are you sure you want to delete the checklist "{checklistToDelete?.name}"? 
+              This will also delete all items in this checklist. This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteChecklist}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

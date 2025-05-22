@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { useTheme } from "@/components/ThemeProvider";
 import {
   Home as HomeIcon,
   Calendar as CalendarIcon,
@@ -15,11 +16,10 @@ import {
   Settings as CogIcon,
   ChevronRight,
   FileText as DocumentTextIcon,
-  Sun,
-  Moon,
-  Sparkles, // Add this import
+  Sparkles,
+  User as UserIcon,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 
 // Define interfaces for navigation items
@@ -32,7 +32,7 @@ interface NavigationItem {
       titleId?: string | undefined;
     } & React.RefAttributes<SVGSVGElement>
   >;
-  requiredRole?: "family" | "owner" | "manager" | "friend"; // Restrict to valid roles
+  requiredRole?: "family" | "owner" | "manager" | "friend";
 }
 
 interface NavigationSection {
@@ -40,7 +40,6 @@ interface NavigationSection {
   items: NavigationItem[];
 }
 
-// Add a User interface definition
 interface User {
   id: string;
   email?: string;
@@ -48,14 +47,12 @@ interface User {
     name?: string;
     role?: string;
   };
-  // Add any other properties your user object has
 }
 
 interface SideNavigationProps {
-  user: User | null; // Use your custom User type
+  user: User | null;
 }
 
-// Update the navigationStructure array with the correct icons
 const navigationStructure: NavigationSection[] = [
   {
     category: "General",
@@ -66,7 +63,8 @@ const navigationStructure: NavigationSection[] = [
       { name: "Nearby Places", href: "/recommendations", icon: StarIcon },
       { name: "Inventory", href: "/inventory", icon: PackageIcon },
       { name: "Contacts", href: "/contacts", icon: PhoneIcon },
-      { name: "Cleaning", href: "/cleaning", icon: Sparkles }, // Add this line
+      { name: "Cleaning", href: "/cleaning", icon: Sparkles },
+      // Account settings moved to bottom
     ],
   },
   {
@@ -97,43 +95,13 @@ const navigationStructure: NavigationSection[] = [
 export default function SideNavigation({ user }: SideNavigationProps) {
   const pathname = usePathname();
   const { hasPermission } = useAuth();
+  const { theme } = useTheme();
   const [expandedCategories, setExpandedCategories] = useState<
     Record<string, boolean>
   >({
     General: true,
     Admin: false,
   });
-
-  const [isDarkMode, setIsDarkMode] = useState(true); // Default to dark mode
-
-  // Load theme preference from localStorage on mount
-  useEffect(() => {
-    // Check for saved preference
-    const savedTheme = localStorage.getItem("theme");
-
-    // Default to dark mode if no preference is saved
-    if (!savedTheme) {
-      setIsDarkMode(true);
-      return;
-    }
-
-    setIsDarkMode(savedTheme === "dark");
-  }, []);
-
-  // Update body class and localStorage when theme changes
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [isDarkMode]);
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
 
   const toggleCategory = (category: string) => {
     setExpandedCategories({
@@ -144,9 +112,15 @@ export default function SideNavigation({ user }: SideNavigationProps) {
 
   const isActive = (href: string) => pathname === href;
 
+  const isDarkMode =
+    theme === "dark" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
   return (
     <div className="fixed inset-y-0 left-0 w-64 hidden md:flex flex-col bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-800 z-10">
-      {/* Header/Logo - Centered with larger dimensions */}
+      {/* Header/Logo - Now using the theme context */}
       <div className="p-6 border-b dark:border-gray-800 flex justify-center items-center">
         <div className="relative h-16 w-40">
           <Image
@@ -163,7 +137,7 @@ export default function SideNavigation({ user }: SideNavigationProps) {
       </div>
 
       {/* Main Navigation */}
-      <div className="flex-1 px-3 py-4 space-y-6">
+      <div className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
         {navigationStructure.map((section) => {
           const isExpanded = expandedCategories[section.category] ?? true;
 
@@ -172,7 +146,7 @@ export default function SideNavigation({ user }: SideNavigationProps) {
               <button
                 onClick={() => toggleCategory(section.category)}
                 className={`w-full flex items-center justify-between text-left text-sm font-medium px-4 py-2 ${
-                  isDarkMode
+                  document.documentElement.classList.contains("dark")
                     ? "text-gray-300 hover:text-white"
                     : "text-gray-600 hover:text-gray-900"
                 } mb-1 transition-colors duration-200`}
@@ -185,11 +159,9 @@ export default function SideNavigation({ user }: SideNavigationProps) {
                 />
               </button>
 
-              {/* Category Items - Updated Style to match Navigation.tsx */}
               {isExpanded && (
                 <div className="space-y-1 pl-1">
                   {section.items.map((item) => {
-                    // Skip items that require permissions user doesn't have
                     if (
                       item.requiredRole &&
                       !hasPermission(item.requiredRole)
@@ -230,29 +202,28 @@ export default function SideNavigation({ user }: SideNavigationProps) {
         })}
       </div>
 
-      {/* Theme Toggle Button */}
-      <div
-        className={`p-4 border-t ${
-          isDarkMode ? "border-gray-700" : "border-gray-200"
-        } flex justify-center transition-colors duration-200`}
-      >
-        <button
-          onClick={toggleTheme}
-          className={`p-2 rounded-md ${
-            isDarkMode
-              ? "bg-gray-700 text-yellow-400 hover:bg-gray-600"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          } transition-colors duration-200`}
-          aria-label={
-            isDarkMode ? "Switch to light mode" : "Switch to dark mode"
-          }
+      {/* Account Settings at bottom */}
+      <div className="px-3 py-4 border-t dark:border-gray-800 mt-auto">
+        <Link
+          href="/account"
+          className={`flex items-center px-4 py-2 text-sm rounded-md ${
+            isActive("/account")
+              ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+              : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+          }`}
         >
-          {isDarkMode ? (
-            <Sun className="h-5 w-5" />
-          ) : (
-            <Moon className="h-5 w-5" />
-          )}
-        </button>
+          <UserIcon
+            className={`
+              mr-3 flex-shrink-0 h-5 w-5
+              ${
+                isActive("/account")
+                  ? "text-gray-500"
+                  : "text-gray-400 group-hover:text-gray-500"
+              }
+            `}
+          />
+          Account Settings
+        </Link>
       </div>
     </div>
   );

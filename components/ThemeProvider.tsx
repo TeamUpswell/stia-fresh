@@ -1,49 +1,68 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-type Theme = "dark" | "light";
-
-type ThemeContextType = {
-  theme: Theme;
-  toggleTheme: () => void;
-};
+interface ThemeContextType {
+  theme: string;
+  updateTheme: (theme: string) => void;
+}
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark"); // Default to dark
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setTheme] = useState("system");
+  const [mounted, setMounted] = useState(false);
 
+  // Only run on client side to avoid hydration mismatch
   useEffect(() => {
-    // Apply dark mode class to document
-    document.documentElement.classList.add("dark");
+    setMounted(true);
+    const savedTheme = localStorage.getItem("theme") || "system";
+    setTheme(savedTheme);
   }, []);
 
-  const toggleTheme = () => {
-    setTheme((prevTheme) => {
-      const newTheme = prevTheme === "dark" ? "light" : "dark";
+  // Apply theme when it changes or when component mounts
+  useEffect(() => {
+    if (!mounted) return;
+    
+    const applyTheme = () => {
+      const isDark = 
+        theme === 'dark' || 
+        (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
       
-      if (newTheme === "dark") {
-        document.documentElement.classList.add("dark");
+      if (isDark) {
+        document.documentElement.classList.add('dark');
       } else {
-        document.documentElement.classList.remove("dark");
+        document.documentElement.classList.remove('dark');
       }
-      
-      return newTheme;
-    });
+    };
+    
+    applyTheme();
+    
+    // Add listener for system theme changes
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyTheme();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [theme, mounted]);
+
+  const updateTheme = (newTheme: string) => {
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, updateTheme }}>
       {children}
     </ThemeContext.Provider>
   );
 }
 
-export function useTheme() {
+export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
+    throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
-}
+};

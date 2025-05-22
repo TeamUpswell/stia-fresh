@@ -9,17 +9,19 @@ export const metadata: Metadata = {
   description: "Stia Application",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-        <AuthProvider>
-          <ThemeProvider>
-            <PropertyProvider>
-              {children}
-            </PropertyProvider>
-          </ThemeProvider>
-        </AuthProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body>
+        <ThemeProvider>
+          <AuthProvider>
+            <PropertyProvider>{children}</PropertyProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
