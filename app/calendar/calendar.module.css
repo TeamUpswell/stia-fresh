@@ -20,13 +20,17 @@
 }
 
 .confirmedStatus {
-  background-color: #10B981;
+  background-color: #10b981;
 }
 
 .pendingStatus {
-  background-color: #F59E0B;
+  background-color: #f59e0b;
 }
 
 .cancelledStatus {
-  background-color: #EF4444;
+  background-color: #ef4444;
+}
+
+.pendingApprovalStatus {
+  background-color: #ff8c00; /* true orange (was amber #F59E0B) */
 }

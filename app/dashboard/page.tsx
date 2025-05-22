@@ -548,32 +548,15 @@ export default function Dashboard() {
                     )}
                   </p>
                 )}
-
-                <div className="flex flex-wrap gap-3 mb-2">
-                  {property?.property_type && (
-                    <span className="text-white/80 text-sm bg-black/30 px-2 py-0.5 rounded-full">
-                      {property.property_type}
-                    </span>
-                  )}
-                  {property?.bedrooms && (
-                    <span className="text-white/80 text-sm bg-black/30 px-2 py-0.5 rounded-full">
-                      {property.bedrooms}{" "}
-                      {property.bedrooms === 1 ? "bed" : "beds"}
-                    </span>
-                  )}
-                  {property?.bathrooms && (
-                    <span className="text-white/80 text-sm bg-black/30 px-2 py-0.5 rounded-full">
-                      {property.bathrooms}{" "}
-                      {property.bathrooms === 1 ? "bath" : "baths"}
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
 
             <p className="text-white/80 mt-1">
-              Welcome, {user?.email?.split("@")[0] || "Guest"}! Here&apos;s
-              what&apos;s happening today.
+              Welcome
+              {user?.user_metadata?.full_name
+                ? `, ${user.user_metadata.full_name}`
+                : ""}
+              ! Here&apos;s what&apos;s happening today.
             </p>
           </div>
         </div>

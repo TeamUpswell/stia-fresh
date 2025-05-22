@@ -34,18 +34,18 @@ export default function UserManagementPage() {
         if (error) {
           // If the view doesn't exist yet, handle it gracefully
           console.error("Error fetching users:", error);
-          
+
           // Fetch from auth.users using a function call instead
           const { data: userData, error: funcError } = await supabase
-            .rpc('get_users')
+            .rpc("get_users")
             .select();
-            
+
           if (funcError) {
             console.error("Backup method failed too:", funcError);
             setUsers([]);
             return;
           }
-          
+
           setUsers(userData);
           return;
         }
@@ -64,9 +64,10 @@ export default function UserManagementPage() {
 
         // Map roles to users
         const usersWithRoles = data.map((user: AppUser) => {
-          const userRoles = rolesData
-            ?.filter((role: any) => role.user_id === user.id)
-            .map((role: any) => role.role) || [];
+          const userRoles =
+            rolesData
+              ?.filter((role: any) => role.user_id === user.id)
+              .map((role: any) => role.role) || [];
 
           return {
             ...user,
@@ -85,6 +86,82 @@ export default function UserManagementPage() {
 
     fetchUsers();
   }, []);
+
+  const saveUserChanges = async () => {
+    if (!selectedUser) return;
+
+    try {
+      // First update the user's name if changed
+      if (selectedUser.full_name !== undefined) {
+        const { error: updateError } = await supabase.rpc("update_user_name", {
+          user_id: selectedUser.id,
+          new_name: selectedUser.full_name,
+        });
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+
+      // Then update roles by removing all existing roles for this user and adding the new ones
+      if (selectedUser.roles) {
+        // Delete existing roles
+        const { error: deleteError } = await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", selectedUser.id);
+
+        if (deleteError) throw deleteError;
+
+        // Add new roles
+        if (selectedUser.roles.length > 0) {
+          const rolesToInsert = selectedUser.roles.map((role) => ({
+            user_id: selectedUser.id,
+            role: role,
+          }));
+
+          const { error: insertError } = await supabase
+            .from("user_roles")
+            .insert(rolesToInsert);
+
+          if (insertError) throw insertError;
+        }
+      }
+
+      // Refresh the user list
+      const { data, error } = await supabase
+        .from("auth_users_view")
+        .select("*");
+
+      if (!error && data) {
+        // Get user roles again
+        const { data: rolesData } = await supabase
+          .from("user_roles")
+          .select("*");
+
+        // Map roles to users
+        const usersWithRoles = data.map((user: AppUser) => {
+          const userRoles =
+            rolesData
+              ?.filter((role: any) => role.user_id === user.id)
+              .map((role: any) => role.role) || [];
+
+          return { ...user, roles: userRoles };
+        });
+
+        setUsers(usersWithRoles);
+      }
+
+      // Close the modal
+      setSelectedUser(null);
+
+      // Show success message
+      alert("User updated successfully");
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      alert(`Error updating user: ${error.message}`);
+    }
+  };
 
   return (
     <AuthenticatedLayout>
@@ -186,6 +263,97 @@ export default function UserManagementPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* User Edit Modal */}
+          {selectedUser && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium">
+                    Edit User: {selectedUser.email}
+                  </h3>
+                  <button
+                    onClick={() => setSelectedUser(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedUser.full_name || ""}
+                      onChange={(e) =>
+                        setSelectedUser({
+                          ...selectedUser,
+                          full_name: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Roles
+                    </label>
+                    <div className="space-y-2">
+                      {["owner", "manager", "family", "guest"].map((role) => (
+                        <div key={role} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id={`role-${role}`}
+                            checked={
+                              selectedUser.roles?.includes(role) || false
+                            }
+                            onChange={(e) => {
+                              const updatedRoles = e.target.checked
+                                ? [...(selectedUser.roles || []), role]
+                                : (selectedUser.roles || []).filter(
+                                    (r) => r !== role
+                                  );
+
+                              setSelectedUser({
+                                ...selectedUser,
+                                roles: updatedRoles,
+                              });
+                            }}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label
+                            htmlFor={`role-${role}`}
+                            className="ml-2 block text-sm text-gray-900 capitalize"
+                          >
+                            {role}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex justify-end space-x-3">
+                  <button
+                    onClick={() => setSelectedUser(null)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveUserChanges}
+                    className="px-4 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -42,7 +42,7 @@ interface Reservation {
 // Status colors for visual representation
 const statusColors: Record<string, string> = {
   confirmed: "#10B981", // green
-  pending: "#F59E0B", // amber
+  "pending approval": "#FF8C00", // true orange (was amber #F59E0B)
   cancelled: "#EF4444", // red
   default: "#3B82F6", // blue - for reservations without status
 };
@@ -57,10 +57,10 @@ export default function ReservationCalendar() {
   const [newReservation, setNewReservation] = useState({
     title: "House Reservation",
     start: new Date(),
-    end: new Date(new Date().setDate(new Date().getDate() + 1)), // Default to next day
+    end: new Date(new Date().setDate(new Date().getDate() + 1)),
     description: "",
     guests: 1,
-    status: "pending",
+    status: "pending approval", // Changed from "tentative"
     allDay: true,
   });
   const [property, setProperty] = useState<Property | null>(null);
@@ -71,8 +71,22 @@ export default function ReservationCalendar() {
   // Proper check
   const hasPermission = (requiredRole: string) => {
     if (!user || !userRoles) return false;
-    // ...
+    return userRoles.includes(requiredRole);
   };
+
+  useEffect(() => {
+    // Refresh Supabase session if needed
+    const refreshSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) console.error("Session error:", error);
+      if (!data.session) {
+        // No session, redirect to login
+        window.location.href = "/auth/login";
+      }
+    };
+
+    refreshSession();
+  }, []);
 
   const fetchReservations = useCallback(async () => {
     try {
@@ -95,9 +109,11 @@ export default function ReservationCalendar() {
           end: new Date(reservation.end_date),
           description: reservation.description,
           guests: reservation.guests || 1,
-          status: reservation.status || "pending",
+          status: reservation.status || "pending approval",
           allDay: true, // House bookings are typically full days
-          color: statusColors[reservation.status as keyof typeof statusColors] || statusColors.default,
+          color:
+            statusColors[reservation.status as keyof typeof statusColors] ||
+            statusColors.default,
         }));
 
         setReservations(calendarReservations);
@@ -124,7 +140,7 @@ export default function ReservationCalendar() {
         console.error("Error loading property:", error);
       }
     }
-    
+
     loadPropertyData();
   }, []);
 
@@ -140,7 +156,7 @@ export default function ReservationCalendar() {
       end,
       description: "",
       guests: 1,
-      status: "pending",
+      status: "pending approval", // Changed from "tentative"
       allDay: true,
     });
     setSelectedReservation(null);
@@ -150,6 +166,13 @@ export default function ReservationCalendar() {
   const handleSaveReservation = async () => {
     try {
       if (!user) return;
+
+      // Set default status for new reservations
+      const status = selectedReservation
+        ? selectedReservation.status
+        : hasPermission("owner") || hasPermission("manager")
+        ? newReservation.status // Owner/manager can set any status
+        : "pending approval"; // Default for new reservations
 
       const reservationData = {
         user_id: user.id,
@@ -168,9 +191,7 @@ export default function ReservationCalendar() {
         guests: selectedReservation
           ? selectedReservation.guests
           : newReservation.guests,
-        status: selectedReservation
-          ? selectedReservation.status
-          : newReservation.status,
+        status: status, // Use the status determined above
         updated_at: new Date().toISOString(),
       };
 
@@ -197,8 +218,9 @@ export default function ReservationCalendar() {
       // Refresh reservations
       fetchReservations();
       setShowReservationModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving reservation:", error);
+      alert(`Failed to save: ${error.message || "Unknown database error"}`);
     }
   };
 
@@ -234,7 +256,11 @@ export default function ReservationCalendar() {
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
         <header className="mb-6">
           <div className="flex justify-between items-center">
-            {property && <h1 className="text-2xl font-bold mb-4">{property.name} Availability</h1>}
+            {property && (
+              <h1 className="text-2xl font-bold mb-4">
+                {property.name} Availability
+              </h1>
+            )}
             <button
               onClick={() =>
                 handleSlotSelect({
@@ -252,15 +278,21 @@ export default function ReservationCalendar() {
           {/* Status legend */}
           <div className="mt-4 flex flex-wrap gap-4">
             <div className="flex items-center">
-              <div className={`${styles.statusIndicator} ${styles.confirmedStatus}`}></div>
+              <div
+                className={`${styles.statusIndicator} ${styles.confirmedStatus}`}
+              ></div>
               <span className="text-sm text-gray-600">Confirmed</span>
             </div>
             <div className="flex items-center">
-              <div className={`${styles.statusIndicator} ${styles.pendingStatus}`}></div>
-              <span className="text-sm text-gray-600">Pending</span>
+              <div
+                className={`${styles.statusIndicator} ${styles.pendingApprovalStatus}`}
+              ></div>
+              <span className="text-sm text-gray-600">Pending Approval</span>
             </div>
             <div className="flex items-center">
-              <div className={`${styles.statusIndicator} ${styles.cancelledStatus}`}></div>
+              <div
+                className={`${styles.statusIndicator} ${styles.cancelledStatus}`}
+              ></div>
               <span className="text-sm text-gray-600">Cancelled</span>
             </div>
           </div>
@@ -417,24 +449,45 @@ export default function ReservationCalendar() {
                       : newReservation.status
                   }
                   onChange={(e) => {
-                    const status = e.target.value as
-                      | "confirmed"
-                      | "pending"
-                      | "cancelled";
+                    const newStatus = e.target.value;
+
+                    // Only allow owner/manager to set status to confirmed
+                    if (
+                      newStatus === "confirmed" &&
+                      !hasPermission("owner") &&
+                      !hasPermission("manager")
+                    ) {
+                      alert(
+                        "Only owners and managers can confirm reservations"
+                      );
+                      return;
+                    }
+
                     selectedReservation
                       ? setSelectedReservation({
                           ...selectedReservation,
-                          status,
+                          status: newStatus,
                         })
-                      : setNewReservation({ ...newReservation, status });
+                      : setNewReservation({
+                          ...newReservation,
+                          status: newStatus,
+                        });
                   }}
                   className="w-full px-3 py-2 border rounded-md"
                   aria-label="Reservation status"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
+                  <option value="pending approval">Pending Approval</option>
+                  {(hasPermission("owner") || hasPermission("manager")) && (
+                    <option value="confirmed">Confirmed</option>
+                  )}
                   <option value="cancelled">Cancelled</option>
                 </select>
+
+                {newReservation.status === "pending approval" && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Reservations require approval from an owner or manager.
+                  </p>
+                )}
               </div>
 
               <div>
