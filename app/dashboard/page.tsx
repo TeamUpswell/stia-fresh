@@ -22,6 +22,8 @@ import {
   Users,
   Pencil,
   Building2,
+  Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "react-hot-toast";
@@ -72,6 +74,11 @@ interface DashboardStats {
   totalProjects: number;
 }
 
+interface CleaningStats {
+  completed: number;
+  total: number;
+}
+
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
@@ -84,6 +91,10 @@ export default function Dashboard() {
   const [property, setProperty] = useState<Property | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [cleaningStats, setCleaningStats] = useState<CleaningStats | null>(
+    null
+  );
+  const [issuesCount, setIssuesCount] = useState<number>(0);
 
   // Add this function to your component
   async function validateImageUrl(url: string) {
@@ -666,6 +677,56 @@ export default function Dashboard() {
               <h3 className="font-medium">Account Settings</h3>
               <p className="text-sm text-gray-500">Update your profile</p>
             </Link>
+          </div>
+        </section>
+
+        {/* Cleaning Section */}
+        <section className="mb-8">
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <Sparkles className="h-6 w-6 text-blue-500 mr-2" />
+                <h2 className="text-xl font-medium">Cleaning</h2>
+              </div>
+              <Link
+                href="/cleaning"
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                View All
+              </Link>
+            </div>
+
+            {cleaningStats ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-600">Tasks Completed</span>
+                  <span className="font-medium">
+                    {cleaningStats.completed}/{cleaningStats.total}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                  <div
+                    className="bg-green-500 h-2.5 rounded-full"
+                    style={{
+                      width: `${
+                        cleaningStats.total
+                          ? (cleaningStats.completed / cleaningStats.total) *
+                            100
+                          : 0
+                      }%`,
+                    }}
+                  ></div>
+                </div>
+                {issuesCount > 0 && (
+                  <div className="mt-2 text-amber-600 text-sm flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-1" />
+                    {issuesCount} issue{issuesCount !== 1 ? "s" : ""} reported
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-gray-500">No cleaning tasks found</div>
+            )}
           </div>
         </section>
 

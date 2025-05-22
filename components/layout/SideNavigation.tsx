@@ -17,6 +17,7 @@ import {
   FileText as DocumentTextIcon,
   Sun,
   Moon,
+  Sparkles, // Add this import
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import Image from "next/image";
@@ -65,6 +66,7 @@ const navigationStructure: NavigationSection[] = [
       { name: "Nearby Places", href: "/recommendations", icon: StarIcon },
       { name: "Inventory", href: "/inventory", icon: PackageIcon },
       { name: "Contacts", href: "/contacts", icon: PhoneIcon },
+      { name: "Cleaning", href: "/cleaning", icon: Sparkles }, // Add this line
     ],
   },
   {
