@@ -19,6 +19,8 @@ export default function PlaceSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
+  const inputId = "place-search-input"; // Add a consistent ID
+
   useEffect(() => {
     const loadGoogleMapsAPI = async () => {
       try {
@@ -65,10 +67,14 @@ export default function PlaceSearch({
 
   return (
     <div className="relative">
+      <label htmlFor={inputId} className="sr-only">
+        Search for places
+      </label>
       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
         <Search className="h-5 w-5 text-gray-400" />
       </div>
       <input
+        id={inputId}
         ref={inputRef}
         type="text"
         className="w-full pl-10 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"

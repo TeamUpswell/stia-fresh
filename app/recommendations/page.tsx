@@ -118,8 +118,14 @@ export default function RecommendationsPage() {
         const propertyData = await getMainProperty();
         setProperty(propertyData);
 
-        // Load categories separately
+        // Load categories regardless of user permission
         await fetchCategories();
+
+        // Debug: Log permissions to verify they work
+        console.log("User Permissions:", {
+          isOwner: hasPermission("owner"),
+          isManager: hasPermission("manager"),
+        });
 
         // Load recommendations if property has coordinates
         if (propertyData?.latitude && propertyData?.longitude) {
@@ -606,10 +612,17 @@ export default function RecommendationsPage() {
         .eq("is_active", true)
         .order("name");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
 
       if (data) {
+        console.log("Categories loaded:", data);
         setCategories(data.map((item) => item.name));
+      } else {
+        console.log("No categories found");
+        setCategories([]);
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -867,10 +880,14 @@ export default function RecommendationsPage() {
                 </h2>
 
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="place-search"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Search for a place
                   </label>
                   <PlaceSearch
+                    inputId="place-search" // Pass ID to component
                     onPlaceSelect={handlePlaceSelect}
                     placeholder="Search for restaurants, attractions, etc."
                   />
@@ -941,8 +958,13 @@ export default function RecommendationsPage() {
                           {(hasPermission("owner") ||
                             hasPermission("manager")) && (
                             <>
-                              <option disabled>─────────────</option>
-                              <option value="manage-categories">
+                              <option disabled className="text-gray-400">
+                                ────────────────────
+                              </option>
+                              <option
+                                value="manage-categories"
+                                className="font-bold"
+                              >
                                 ⚙️ Manage Categories
                               </option>
                             </>
@@ -1199,20 +1221,39 @@ export default function RecommendationsPage() {
                           >
                             Category *
                           </label>
-                          <input
+                          <select
                             id="edit-category"
-                            type="text"
                             value={editingRecommendation.category}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === "manage-categories") {
+                                setShowCategoryModal(true);
+                                return;
+                              }
                               setEditingRecommendation({
                                 ...editingRecommendation,
-                                category: e.target.value,
-                              })
-                            }
+                                category: value,
+                              });
+                            }}
                             required
                             className="w-full px-3 py-2 border border-gray-300 rounded-md"
                             aria-label="Recommendation category"
-                          />
+                          >
+                            {categories.map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                            {(hasPermission("owner") ||
+                              hasPermission("manager")) && (
+                              <>
+                                <option disabled>─────────────</option>
+                                <option value="manage-categories">
+                                  ⚙️ Manage Categories
+                                </option>
+                              </>
+                            )}
+                          </select>
                         </div>
 
                         <div className="md:col-span-2">
@@ -1420,12 +1461,23 @@ export default function RecommendationsPage() {
 
             <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label
-                  htmlFor="category-filter"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Filter by Category
-                </label>
+                <div className="flex justify-between items-end mb-1">
+                  <label
+                    htmlFor="category-filter"
+                    className="block text-sm font-medium text-gray-700"
+                  >
+                    Filter by Category
+                  </label>
+                  {(hasPermission("owner") || hasPermission("manager")) && (
+                    <button
+                      onClick={() => setShowCategoryModal(true)}
+                      type="button"
+                      className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                    >
+                      <Settings size={14} className="mr-1" /> Manage
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <select
                     id="category-filter"

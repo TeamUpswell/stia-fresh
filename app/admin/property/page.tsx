@@ -86,7 +86,7 @@ export default function PropertySettings() {
       console.log("Form value changed:", name, value);
     });
     return () => subscription.unsubscribe();
-  }, [watch]);
+  }, []); // Remove watch from dependencies
 
   // Property types for dropdown
   const propertyTypes = [
@@ -268,9 +268,7 @@ export default function PropertySettings() {
           .eq("property_id", property.id);
       } else {
         // Create new
-        result = await supabase
-          .from("property_details")
-          .insert([testData]);
+        result = await supabase.from("property_details").insert([testData]);
       }
 
       console.log("Test operation result:", result);
@@ -358,11 +356,13 @@ export default function PropertySettings() {
         // Create new property
         result = await supabase
           .from("properties")
-          .insert([{ 
-            ...propertyData, 
-            created_at: new Date().toISOString(),
-            created_by: user.id 
-          }])
+          .insert([
+            {
+              ...propertyData,
+              created_at: new Date().toISOString(),
+              created_by: user.id,
+            },
+          ])
           .select();
       }
 
@@ -386,7 +386,7 @@ export default function PropertySettings() {
 
     try {
       setIsSavingBasic(true);
-      
+
       const basicData = {
         name: watch("name") || "New Property",
         address: watch("address") || null,
@@ -401,7 +401,7 @@ export default function PropertySettings() {
         country: watch("country"),
         updated_at: new Date().toISOString(),
       };
-      
+
       // Same logic for insert or update, but no separate property_details operations
       // ...
     } finally {
@@ -1071,15 +1071,6 @@ export default function PropertySettings() {
                   </Tab.Panel>
                 </Tab.Panels>
               </Tab.Group>
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={testDatabaseOperation}
-                  className="px-3 py-1 bg-gray-200 text-gray-800 rounded-md text-sm"
-                >
-                  Debug DB
-                </button>
-              </div>
             </form>
           )}
         </div>
