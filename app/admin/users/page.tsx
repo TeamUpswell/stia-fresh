@@ -517,7 +517,7 @@ export default function UsersPage() {
                                 <User className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                               </div>
                               <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                <div className="text-sm font-medium text-black dark:text-black">
                                   {profile.full_name || "Unnamed User"}
                                 </div>
                                 <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -543,37 +543,26 @@ export default function UsersPage() {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() =>
-                                toggleContactVisibility(
-                                  profile.id,
-                                  profile.show_in_contacts
-                                )
-                              }
-                              className={`relative inline-flex items-center h-6 rounded-full w-12 focus:outline-none ${
-                                profile.show_in_contacts
-                                  ? "bg-blue-600"
-                                  : "bg-gray-200 dark:bg-gray-700"
-                              }`}
-                            >
-                              <span className="sr-only">
-                                {profile.show_in_contacts
-                                  ? "Hide from contacts"
-                                  : "Show in contacts"}
-                              </span>
-
-                              <span
-                                className={`inline-block w-4 h-4 transform transition-transform duration-200 ease-in-out rounded-full bg-white ${
-                                  profile.show_in_contacts
-                                    ? "translate-x-7"
-                                    : "translate-x-1"
-                                }`}
+                            <div className="flex items-center">
+                              <input
+                                id={`contact-visibility-${profile.id}`}
+                                type="checkbox"
+                                checked={profile.show_in_contacts}
+                                onChange={() =>
+                                  toggleContactVisibility(
+                                    profile.id,
+                                    profile.show_in_contacts
+                                  )
+                                }
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                               />
-
-                              {profile.show_in_contacts && (
-                                <Phone className="absolute right-1.5 h-3 w-3 text-white" />
-                              )}
-                            </button>
+                              <label
+                                htmlFor={`contact-visibility-${profile.id}`}
+                                className="ml-2 block text-sm text-gray-500 dark:text-gray-400"
+                              >
+                                Show in contacts
+                              </label>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button
