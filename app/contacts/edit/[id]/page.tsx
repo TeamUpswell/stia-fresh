@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -8,7 +8,14 @@ import SideNavigation from "@/components/layout/SideNavigation";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
 import Link from "next/link";
 
-export default function EditContactPage({ params }) {
+// Define proper type for page params
+interface PageParams {
+  params: {
+    id: string;
+  };
+}
+
+export default function EditContactPage({ params }: PageParams) {
   const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -55,9 +62,10 @@ export default function EditContactPage({ params }) {
             priority: priority,
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error fetching contact:", error);
-        setError("Failed to load contact information.");
+        const errorMessage = error instanceof Error ? error.message : "Failed to load contact";
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -66,7 +74,8 @@ export default function EditContactPage({ params }) {
     fetchContact();
   }, [contactId]);
 
-  const handleChange = (e) => {
+  // Update the handleChange function with proper typing
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -74,7 +83,8 @@ export default function EditContactPage({ params }) {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  // Update the handleSubmit function with proper typing
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -101,14 +111,16 @@ export default function EditContactPage({ params }) {
       // Redirect back to contacts page on success
       router.push("/contacts");
       router.refresh();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error updating contact:", error);
-      setError(error.message);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  // Update the handleDeleteContact function with proper error handling
   const handleDeleteContact = async () => {
     try {
       setLoading(true);
@@ -122,9 +134,10 @@ export default function EditContactPage({ params }) {
       // Redirect back to contacts page on success
       router.push("/contacts");
       router.refresh();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error deleting contact:", error);
-      setError(error.message);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -182,6 +195,8 @@ export default function EditContactPage({ params }) {
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-gray-900"
                       required
+                      placeholder="Enter contact name"
+                      aria-label="Contact name"
                     />
                   </div>
 
@@ -195,6 +210,7 @@ export default function EditContactPage({ params }) {
                       value={formData.role}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-gray-900"
+                      aria-label="Contact role"
                     >
                       <option value="contractor">Contractor</option>
                       <option value="plumber">Plumber</option>
@@ -217,6 +233,8 @@ export default function EditContactPage({ params }) {
                       value={formData.phone}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter phone number"
+                      aria-label="Contact phone number"
                     />
                   </div>
 
@@ -231,6 +249,8 @@ export default function EditContactPage({ params }) {
                       value={formData.email}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter email address"
+                      aria-label="Contact email address"
                     />
                   </div>
 
@@ -245,6 +265,8 @@ export default function EditContactPage({ params }) {
                       value={formData.website}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter website URL"
+                      aria-label="Contact website"
                     />
                   </div>
 
@@ -259,6 +281,8 @@ export default function EditContactPage({ params }) {
                       onChange={handleChange}
                       rows={2}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter physical address"
+                      aria-label="Contact address"
                     />
                   </div>
 
@@ -275,6 +299,8 @@ export default function EditContactPage({ params }) {
                       value={formData.priority}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Set priority level (0-10)"
+                      aria-label="Contact priority level"
                     />
                   </div>
 
@@ -289,6 +315,8 @@ export default function EditContactPage({ params }) {
                       onChange={handleChange}
                       rows={3}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter description or notes"
+                      aria-label="Contact description"
                     />
                   </div>
                 </div>

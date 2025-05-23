@@ -18,15 +18,48 @@ import {
 import PermissionGate from "@/components/PermissionGate";
 import SideNavigation from "@/components/layout/SideNavigation";
 
+interface Profile {
+  id: string;
+  full_name?: string;
+  email?: string;
+  phone_number?: string;
+  address?: string;
+  show_in_contacts: boolean;
+  role?: string;
+  user_metadata?: {
+    role?: string;
+  };
+}
+
+interface FormData {
+  full_name: string;
+  email: string;
+  phone_number: string;
+  address: string;
+  show_in_contacts: boolean;
+  role: string;
+}
+
+interface FormErrors {
+  full_name?: string;
+  email?: string;
+  [key: string]: string | undefined;
+}
+
+interface SubmitStatus {
+  type: string;
+  message: string;
+}
+
 export default function UsersPage() {
   const { user } = useAuth();
-  const [profiles, setProfiles] = useState([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState(null);
-  const [formData, setFormData] = useState({
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [formData, setFormData] = useState<FormData>({
     full_name: "",
     email: "",
     phone_number: "",
@@ -34,8 +67,11 @@ export default function UsersPage() {
     show_in_contacts: false,
     role: "family",
   });
-  const [formErrors, setFormErrors] = useState({});
-  const [submitStatus, setSubmitStatus] = useState({ type: "", message: "" });
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [submitStatus, setSubmitStatus] = useState<SubmitStatus>({
+    type: "",
+    message: "",
+  });
 
   useEffect(() => {
     fetchProfiles();
@@ -75,7 +111,7 @@ export default function UsersPage() {
       }
 
       // Combine profiles with their roles
-      const profilesWithRoles = profileData.map((profile) => {
+      const profilesWithRoles = profileData.map((profile): Profile => {
         const userRole = roleData?.find((r) => r.user_id === profile.id);
         return {
           ...profile,
@@ -84,7 +120,7 @@ export default function UsersPage() {
       });
 
       console.log("Profiles loaded:", profilesWithRoles.length);
-      setProfiles(profilesWithRoles || []);
+      setProfiles(profilesWithRoles);
     } catch (error) {
       console.error("Error in fetchProfiles:", error);
     } finally {
@@ -125,7 +161,10 @@ export default function UsersPage() {
     }
   };
 
-  const toggleContactVisibility = async (profileId, currentValue) => {
+  const toggleContactVisibility = async (
+    profileId: string,
+    currentValue: boolean
+  ) => {
     try {
       console.log(
         `Toggling visibility for profile ${profileId} from ${currentValue} to ${!currentValue}`
@@ -152,9 +191,10 @@ export default function UsersPage() {
             : profile
         )
       );
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error("Error updating contact visibility:", error);
-      alert(`Failed to update contact visibility: ${error.message}`);
+      alert(`Failed to update contact visibility: ${errorMessage}`);
     }
   };
 
@@ -172,7 +212,7 @@ export default function UsersPage() {
     setShowAddModal(true);
   };
 
-  const openEditModal = (profile) => {
+  const openEditModal = (profile: Profile) => {
     setCurrentProfile(profile);
     setFormData({
       full_name: profile.full_name || "",
@@ -187,13 +227,18 @@ export default function UsersPage() {
     setShowEditModal(true);
   };
 
-  const openDeleteModal = (profile) => {
+  const openDeleteModal = (profile: Profile) => {
     setCurrentProfile(profile);
     setShowDeleteModal(true);
   };
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value, type } = e.target;
+    // Use type assertion for checkbox inputs
+    const checked = type === "checkbox" ? (e.target as HTMLInputElement).checked : undefined;
+    
     setFormData({
       ...formData,
       [name]: type === "checkbox" ? checked : value,
@@ -201,7 +246,7 @@ export default function UsersPage() {
   };
 
   const validateForm = () => {
-    let errors = {};
+    let errors: FormErrors = {};
 
     if (!formData.full_name.trim()) {
       errors.full_name = "Name is required";
@@ -217,7 +262,7 @@ export default function UsersPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleAddUser = async (e) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) return;
@@ -225,61 +270,43 @@ export default function UsersPage() {
     try {
       setSubmitStatus({ type: "loading", message: "Creating user..." });
 
-      // 1. First, create the user in auth system
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: generateRandomPassword(), // Generate a secure random password
-        options: {
-          data: {
-            full_name: formData.full_name,
-            role: formData.role,
-          },
-        },
+      // Use server-side API to properly create users in sequence
+      const response = await fetch("/api/users/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email,
+          full_name: formData.full_name,
+          phone_number: formData.phone_number || null,
+          address: formData.address || null,
+          show_in_contacts: formData.show_in_contacts || false,
+          role: formData.role || "family",
+        }),
       });
 
-      if (authError) throw authError;
+      const result = await response.json();
 
-      if (!authData?.user?.id) {
-        throw new Error("Failed to create user account");
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create user");
       }
-
-      // 2. Then create the profile using the auth ID
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: authData.user.id, // Use the ID from the created auth user
-        full_name: formData.full_name,
-        email: formData.email,
-        phone_number: formData.phone_number,
-        address: formData.address,
-        show_in_contacts: formData.show_in_contacts,
-        created_at: new Date().toISOString(),
-      });
-
-      if (profileError) throw profileError;
-
-      // 3. Add to user_roles table
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: authData.user.id,
-        role: formData.role,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        assigned_at: new Date().toISOString(),
-      });
 
       setSubmitStatus({
         type: "success",
         message:
-          "User created successfully! They will receive an email to set their password.",
+          "User created successfully! An invitation email has been sent to join the property.",
       });
+
       await fetchProfiles();
 
       setTimeout(() => {
         setShowAddModal(false);
       }, 2500);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error creating user:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       setSubmitStatus({
         type: "error",
-        message: `Error: ${error.message || "Failed to create user"}`,
+        message: `Error: ${errorMessage}`,
       });
     }
   };
@@ -296,7 +323,7 @@ export default function UsersPage() {
     return password;
   }
 
-  const handleEditUser = async (e) => {
+  const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) return;
@@ -401,46 +428,49 @@ export default function UsersPage() {
       setTimeout(() => {
         setShowEditModal(false);
       }, 1500);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error updating user:", error);
-      setSubmitStatus({ type: "error", message: `Error: ${error.message}` });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setSubmitStatus({ type: "error", message: `Error: ${errorMessage}` });
     }
   };
 
   const handleDeleteUser = async () => {
     try {
-      // Delete from user_roles first (foreign key)
-      const { error: roleDeleteError } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", currentProfile.id);
+      setSubmitStatus({ type: "loading", message: "Deleting user..." });
 
-      if (roleDeleteError) {
-        console.error("Error deleting user role:", roleDeleteError);
+      // Use a server-side API route to handle deletion with admin privileges
+      const response = await fetch("/api/users/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentProfile?.id,
+          email: currentProfile?.email,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to delete user");
       }
 
-      // Then delete from profiles
-      const { error: profileDeleteError } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", currentProfile.id);
-
-      if (profileDeleteError) throw profileDeleteError;
-
-      // Also delete the auth user
-      if (supabaseAdmin) {
-        const { error: authDeleteError } =
-          await supabaseAdmin.auth.admin.deleteUser(currentProfile.id);
-
-        if (authDeleteError) {
-          console.error("Error deleting auth user:", authDeleteError);
-        }
-      }
-
+      setSubmitStatus({
+        type: "success",
+        message: "User deleted successfully!",
+      });
       await fetchProfiles();
-      setShowDeleteModal(false);
-    } catch (error) {
+
+      setTimeout(() => {
+        setShowDeleteModal(false);
+      }, 1000);
+    } catch (error: unknown) {
       console.error("Error deleting user:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setSubmitStatus({
+        type: "error",
+        message: `Error deleting user: ${errorMessage}`,
+      });
     }
   };
 
@@ -567,15 +597,10 @@ export default function UsersPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button
                               onClick={() => openEditModal(profile)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              aria-label="Edit user"
                             >
                               <Edit className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => openDeleteModal(profile)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                            >
-                              <Trash2 className="h-4 w-4" />
                             </button>
                           </td>
                         </tr>
@@ -606,6 +631,7 @@ export default function UsersPage() {
               <button
                 onClick={() => setShowAddModal(false)}
                 className="text-gray-500 hover:text-gray-700"
+                aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -633,8 +659,11 @@ export default function UsersPage() {
                 <input
                   type="text"
                   name="full_name"
+                  id="user-full-name"
                   value={formData.full_name}
                   onChange={handleInputChange}
+                  aria-label="Full Name"
+                  placeholder="Enter full name"
                   className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
                     formErrors.full_name ? "border-red-500" : ""
                   }`}
@@ -653,8 +682,11 @@ export default function UsersPage() {
                 <input
                   type="email"
                   name="email"
+                  id="add-user-email"
                   value={formData.email}
                   onChange={handleInputChange}
+                  placeholder="Enter email address"
+                  aria-label="Email Address"
                   className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
                     formErrors.email ? "border-red-500" : ""
                   }`}
@@ -673,8 +705,11 @@ export default function UsersPage() {
                 <input
                   type="tel"
                   name="phone_number"
+                  id="add-user-phone"
                   value={formData.phone_number}
                   onChange={handleInputChange}
+                  placeholder="Enter phone number"
+                  aria-label="Phone Number"
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
@@ -686,8 +721,11 @@ export default function UsersPage() {
                 <input
                   type="text"
                   name="address"
+                  id="add-user-address"
                   value={formData.address}
                   onChange={handleInputChange}
+                  placeholder="Enter address"
+                  aria-label="Address"
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
@@ -698,8 +736,10 @@ export default function UsersPage() {
                 </label>
                 <select
                   name="role"
+                  id="user-role"
                   value={formData.role}
                   onChange={handleInputChange}
+                  aria-label="User Role"
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 >
                   <option value="family">Family</option>
@@ -765,6 +805,7 @@ export default function UsersPage() {
               <button
                 onClick={() => setShowEditModal(false)}
                 className="text-gray-500 hover:text-gray-700"
+                aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -792,8 +833,11 @@ export default function UsersPage() {
                 <input
                   type="text"
                   name="full_name"
+                  id="user-full-name"
                   value={formData.full_name}
                   onChange={handleInputChange}
+                  aria-label="Full Name"
+                  placeholder="Enter full name"
                   className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
                     formErrors.full_name ? "border-red-500" : ""
                   }`}
@@ -812,8 +856,11 @@ export default function UsersPage() {
                 <input
                   type="email"
                   name="email"
+                  id="edit-user-email"
                   value={formData.email}
                   onChange={handleInputChange}
+                  placeholder="Enter email address"
+                  aria-label="Email Address"
                   className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
                     formErrors.email ? "border-red-500" : ""
                   }`}
@@ -832,8 +879,11 @@ export default function UsersPage() {
                 <input
                   type="tel"
                   name="phone_number"
+                  id="edit-user-phone"
                   value={formData.phone_number}
                   onChange={handleInputChange}
+                  placeholder="Enter phone number" 
+                  aria-label="Phone Number"
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
@@ -845,8 +895,11 @@ export default function UsersPage() {
                 <input
                   type="text"
                   name="address"
+                  id="edit-user-address"
                   value={formData.address}
                   onChange={handleInputChange}
+                  placeholder="Enter address"
+                  aria-label="Address"
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
@@ -857,8 +910,10 @@ export default function UsersPage() {
                 </label>
                 <select
                   name="role"
+                  id="user-role"
                   value={formData.role}
                   onChange={handleInputChange}
+                  aria-label="User Role"
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 >
                   <option value="family">Family</option>
@@ -887,28 +942,46 @@ export default function UsersPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2 mt-6">
+              <div className="flex justify-between mt-6">
+                {/* Add delete button on the left */}
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                  onClick={() => {
+                    setShowEditModal(false); // Close the edit modal
+                    openDeleteModal(currentProfile!); // Open the delete modal
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                 >
-                  Cancel
+                  <span className="inline-flex items-center">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete User
+                  </span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitStatus.type === "loading"}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
-                >
-                  {submitStatus.type === "loading" ? (
-                    <span className="inline-flex items-center">
-                      <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
-                      Updating...
-                    </span>
-                  ) : (
-                    "Update User"
-                  )}
-                </button>
+
+                {/* Move existing buttons to the right */}
+                <div className="flex space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitStatus.type === "loading"}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
+                  >
+                    {submitStatus.type === "loading" ? (
+                      <span className="inline-flex items-center">
+                        <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
+                        Updating...
+                      </span>
+                    ) : (
+                      "Update User"
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -920,24 +993,60 @@ export default function UsersPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h2 className="text-xl font-semibold mb-4">Delete User</h2>
-            <p className="text-gray-700 dark:text-gray-300 mb-4">
-              Are you sure you want to delete{" "}
-              <strong>{currentProfile.full_name}</strong>? This action cannot be
-              undone.
-            </p>
+
+            {submitStatus.message && submitStatus.type !== "" ? (
+              <div
+                className={`mb-4 p-3 rounded ${
+                  submitStatus.type === "error"
+                    ? "bg-red-100 text-red-700 border border-red-200"
+                    : submitStatus.type === "success"
+                    ? "bg-green-100 text-green-700 border border-green-200"
+                    : "bg-blue-100 text-blue-700 border border-blue-200"
+                }`}
+              >
+                {submitStatus.message}
+              </div>
+            ) : (
+              <>
+                <p className="text-gray-700 dark:text-gray-300 mb-4">
+                  Are you sure you want to delete{" "}
+                  <strong>{currentProfile?.full_name || "this user"}</strong>?
+                </p>
+                <p className="text-red-600 font-medium mb-4">
+                  This action cannot be undone. The user will be permanently
+                  removed from the system.
+                </p>
+              </>
+            )}
+
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => setShowDeleteModal(false)}
                 className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                disabled={submitStatus.type === "loading"}
               >
-                Cancel
+                {submitStatus.type === "success" ? "Close" : "Cancel"}
               </button>
-              <button
-                onClick={handleDeleteUser}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-              >
-                Delete
-              </button>
+
+              {submitStatus.type !== "success" &&
+                submitStatus.type !== "loading" && (
+                  <button
+                    onClick={handleDeleteUser}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                  >
+                    Delete
+                  </button>
+                )}
+
+              {submitStatus.type === "loading" && (
+                <button
+                  disabled
+                  className="px-4 py-2 bg-red-600 text-white rounded-md opacity-75 flex items-center"
+                >
+                  <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></span>
+                  Deleting...
+                </button>
+              )}
             </div>
           </div>
         </div>

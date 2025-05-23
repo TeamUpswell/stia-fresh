@@ -98,15 +98,16 @@ export default function CleaningDashboard() {
             <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
               <nav className="flex -mb-px space-x-8">
                 {cleaningNavItems.map((item) => {
-                  const isActive = item.href === "/cleaning" 
-                    ? pathname === item.href 
-                    : pathname.startsWith(item.href);
+                  const isActive = pathname 
+                    ? item.href === "/cleaning"
+                      ? pathname === item.href
+                      : pathname.startsWith(item.href)
+                    : false;
                   const IconComponent = item.icon;
 
-                  // Wrap with PermissionGate if required role is specified
+                  // Create link element with key
                   const linkElement = (
                     <Link
-                      key={item.name}
                       href={item.href}
                       className={`flex items-center py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
                         isActive
@@ -125,7 +126,7 @@ export default function CleaningDashboard() {
                     </Link>
                   );
 
-                  // If item requires specific role, wrap with PermissionGate
+                  // If item requires specific role, wrap with PermissionGate WITH A KEY
                   if (item.requiredRole) {
                     return (
                       <PermissionGate key={item.name} requiredRole={item.requiredRole}>
@@ -134,7 +135,8 @@ export default function CleaningDashboard() {
                     );
                   }
                   
-                  return linkElement;
+                  // Return the link WITH A KEY 
+                  return <div key={item.name}>{linkElement}</div>;
                 })}
               </nav>
             </div>

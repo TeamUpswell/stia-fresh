@@ -5,8 +5,9 @@ import SideNavigation from "@/components/layout/SideNavigation";
 import { User, Key, Bell, Palette } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ReactNode } from "react";
 
-export default function AccountLayout({ children }) {
+export default function AccountLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
 

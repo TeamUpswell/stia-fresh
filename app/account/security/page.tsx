@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, FormEvent } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { Key, Shield, LogOut } from "lucide-react";
@@ -17,7 +17,7 @@ export default function SecurityPage() {
   });
 
   // Password change function
-  const changePassword = async (e) => {
+  const changePassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     // Validation
@@ -56,10 +56,17 @@ export default function SecurityPage() {
         text: "Password updated successfully",
         type: "success",
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error changing password:", error);
+      let errorMessage = "Error changing password";
+      
+      // Type guard for error object with message property
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = error.message as string;
+      }
+      
       setPasswordMessage({
-        text: error.message || "Error changing password",
+        text: errorMessage,
         type: "error",
       });
     } finally {

@@ -1,11 +1,29 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 
+// Define the user metadata interface
+interface UserMetadata {
+  name?: string;
+  [key: string]: any;
+}
+
+// Define our complete User type
+interface ExtendedUser {
+  id: string;
+  email?: string;
+  roles: string[];
+  isAdmin: boolean;
+  isFamily: boolean;
+  isManager: boolean;
+  user_metadata?: UserMetadata;
+}
+
 export default function AccountSettings() {
-  const { user, isLoading } = useAuth();
+  const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -16,12 +34,14 @@ export default function AccountSettings() {
   // Load user data when available
   useEffect(() => {
     if (user) {
-      setFullName(user.user_metadata?.name || "");
+      // Cast user to our extended type to access user_metadata
+      const extendedUser = user as unknown as ExtendedUser;
+      setFullName(extendedUser.user_metadata?.name || "");
       setEmail(user.email || "");
 
       // Fetch from profiles table
-      try {
-        const fetchProfile = async () => {
+      const fetchProfile = async () => {
+        try {
           const { data, error } = await supabase
             .from("profiles")
             .select("full_name, address, phone_number")
@@ -29,24 +49,35 @@ export default function AccountSettings() {
             .single();
 
           if (data && !error) {
-            setFullName(data.full_name || user.user_metadata?.name || "");
+            setFullName(
+              data.full_name || extendedUser.user_metadata?.name || ""
+            );
             setAddress(data.address || "");
             setPhoneNumber(data.phone_number || "");
           }
-        };
-        fetchProfile();
-      } catch (error) {
-        console.error("Error fetching profile:", error);
-      }
+        } catch (error) {
+          console.error("Error fetching profile:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      fetchProfile();
+    } else {
+      setIsLoading(false);
     }
   }, [user]);
 
-  const updateProfile = async (e) => {
+  const updateProfile = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsUpdating(true);
     setMessage({ text: "", type: "" });
 
     try {
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       // Check if email was changed
       const emailChanged = email !== user.email;
 
@@ -84,10 +115,12 @@ export default function AccountSettings() {
           : "Profile updated successfully",
         type: "success",
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error updating profile:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
       setMessage({
-        text: error.message || "Error updating profile",
+        text: errorMessage || "Error updating profile",
         type: "error",
       });
     } finally {

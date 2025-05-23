@@ -1,18 +1,42 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Plus, Check, X, Trash2, MoveUp, MoveDown, Reorder } from "lucide-react";
+import { ArrowLeft, Plus, Check, X, Trash2, MoveUp, MoveDown, GripVertical, Edit } from "lucide-react";
 import PermissionGate from "@/components/PermissionGate";
 import Link from "next/link";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 
+// Define interfaces for our data structures
+interface ChecklistItem {
+  id: string;
+  checklist_id: string;
+  text: string;
+  position?: number;
+  created_at?: string;
+}
+
+interface Checklist {
+  id: string;
+  name: string;
+  description?: string;
+  created_by: string;
+  created_at?: string;
+}
+
+// Props for SortableItem component
+interface SortableItemProps {
+  item: ChecklistItem;
+  onEdit: (item: ChecklistItem) => void;
+  onDelete: (item: ChecklistItem) => void;
+}
+
 // Sortable item component
-function SortableItem({ item, onEdit, onDelete }) {
+function SortableItem({ item, onEdit, onDelete }: SortableItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
   
   const style = {
@@ -31,8 +55,10 @@ function SortableItem({ item, onEdit, onDelete }) {
           className="cursor-grab mr-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300" 
           {...attributes} 
           {...listeners}
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
         >
-          <Reorder size={18} />
+          <GripVertical size={18} />
         </button>
         <span>{item.text}</span>
       </div>
@@ -40,12 +66,16 @@ function SortableItem({ item, onEdit, onDelete }) {
         <button
           onClick={() => onEdit(item)}
           className="p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          aria-label="Edit item"
+          title="Edit item"
         >
           <Edit size={16} />
         </button>
         <button
           onClick={() => onDelete(item)}
           className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+          aria-label="Delete item"
+          title="Delete item"
         >
           <Trash2 size={16} />
         </button>
@@ -54,19 +84,26 @@ function SortableItem({ item, onEdit, onDelete }) {
   );
 }
 
-export default function ChecklistItemsPage({ params }) {
+// Update the page component definition
+interface PageParams {
+  params: {
+    id: string;
+  };
+}
+
+export default function ChecklistItemsPage({ params }: PageParams) {
   const router = useRouter();
   const { id } = params;
   const { user } = useAuth();
-  const [checklist, setChecklist] = useState(null);
-  const [items, setItems] = useState([]);
+  const [checklist, setChecklist] = useState<Checklist | null>(null);
+  const [items, setItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [newItem, setNewItem] = useState("");
-  const [editingItem, setEditingItem] = useState(null);
+  const [editingItem, setEditingItem] = useState<ChecklistItem | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState<ChecklistItem | null>(null);
   
   // Configure DnD sensors
   const sensors = useSensors(
@@ -100,11 +137,12 @@ export default function ChecklistItemsPage({ params }) {
           
         if (itemsError) throw itemsError;
         
-        setChecklist(checklistData);
-        setItems(itemsData || []);
-      } catch (error) {
+        setChecklist(checklistData as Checklist);
+        setItems(itemsData as ChecklistItem[] || []);
+      } catch (error: unknown) {
         console.error("Error fetching checklist:", error);
-        setError("Failed to load checklist");
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        setError(`Failed to load checklist: ${errorMessage}`);
       } finally {
         setLoading(false);
       }
@@ -114,7 +152,7 @@ export default function ChecklistItemsPage({ params }) {
   }, [user, id]);
   
   // Add new item
-  const addItem = async (e) => {
+  const addItem = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newItem.trim()) {
       setError("Item text is required");
@@ -139,19 +177,25 @@ export default function ChecklistItemsPage({ params }) {
       if (error) throw error;
       
       // Update state
-      setItems([...items, data[0]]);
+      setItems([...items, data[0] as ChecklistItem]);
       setNewItem("");
       setSuccess("Item added successfully");
       setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error adding item:", error);
-      setError("Failed to add item");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setError(`Failed to add item: ${errorMessage}`);
     }
   };
   
   // Update item
-  const updateItem = async (e) => {
+  const updateItem = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!editingItem) {
+      setError("No item selected for editing");
+      return;
+    }
+    
     if (!editingItem.text.trim()) {
       setError("Item text is required");
       return;
@@ -172,9 +216,10 @@ export default function ChecklistItemsPage({ params }) {
       setEditingItem(null);
       setSuccess("Item updated successfully");
       setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error updating item:", error);
-      setError("Failed to update item");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setError(`Failed to update item: ${errorMessage}`);
     }
   };
   
@@ -196,14 +241,15 @@ export default function ChecklistItemsPage({ params }) {
       setShowDeleteModal(false);
       setSuccess("Item deleted successfully");
       setTimeout(() => setSuccess(""), 3000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error deleting item:", error);
-      setError("Failed to delete item");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      setError(`Failed to delete item: ${errorMessage}`);
     }
   };
   
   // Handle drag end - update item positions
-  const handleDragEnd = async (event) => {
+  const handleDragEnd = async (event: any) => {
     const { active, over } = event;
     
     if (active.id !== over.id) {
@@ -238,10 +284,10 @@ export default function ChecklistItemsPage({ params }) {
           .upsert(updates, { onConflict: "id" });
           
         if (error) throw error;
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error updating positions:", error);
-        setError("Failed to update item positions");
-        // Could revert to original state here if needed
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        setError(`Failed to update item positions: ${errorMessage}`);
       }
     }
   };
@@ -308,7 +354,7 @@ export default function ChecklistItemsPage({ params }) {
               <input 
                 type="text"
                 value={newItem}
-                onChange={(e) => setNewItem(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setNewItem(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
                 placeholder="e.g., Clean window sills"
               />
@@ -340,14 +386,21 @@ export default function ChecklistItemsPage({ params }) {
                       </label>
                       <input 
                         type="text"
-                        value={editingItem.text}
-                        onChange={(e) => setEditingItem({...editingItem, text: e.target.value})}
+                        value={editingItem?.text || ""}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => 
+                          setEditingItem(editingItem ? 
+                            {...editingItem, text: e.target.value} : null)
+                        }
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md"
+                        aria-label="Edit item text"
+                        placeholder="Enter item text"
                       />
                     </div>
                     <button
                       type="submit"
                       className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                      aria-label="Save changes"
+                      title="Save changes"
                     >
                       <Check size={18} />
                     </button>
@@ -355,6 +408,8 @@ export default function ChecklistItemsPage({ params }) {
                       type="button"
                       onClick={() => setEditingItem(null)}
                       className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                      aria-label="Cancel editing"
+                      title="Cancel editing"
                     >
                       <X size={18} />
                     </button>

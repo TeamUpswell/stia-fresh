@@ -6,15 +6,34 @@ import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import { getMainProperty } from "@/lib/propertyService";
-import { CheckCircle, ArrowLeft, Home, Utensils, Bath } from "lucide-react";
+import { CheckCircle, ArrowLeft, Home, Utensils, Bath, LucideIcon } from "lucide-react";
 import RoomCard from "../components/RoomCard";
+
+// Define interfaces for our data structures
+interface RoomStat {
+  total: number;
+  completed: number;
+}
+
+interface RoomType {
+  id: string;
+  name: string;
+  icon: LucideIcon; // Updated to use LucideIcon instead of React.ElementType
+}
+
+interface Property {
+  id: string;
+  name?: string;
+  address?: string;
+  [key: string]: any; // For other potential properties
+}
 
 export default function CleaningChecklist() {
   const { user } = useAuth();
-  const [property, setProperty] = useState(null);
-  const [roomStats, setRoomStats] = useState({});
+  const [property, setProperty] = useState<Property | null>(null);
+  const [roomStats, setRoomStats] = useState<Record<string, RoomStat>>({});
   const [loading, setLoading] = useState(true);
-  const [roomTypes, setRoomTypes] = useState([
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([
     { id: "kitchen", name: "Kitchen", icon: Utensils },
     { id: "living_room", name: "Living Room", icon: Home },
     { id: "master_bedroom", name: "Master Bedroom", icon: Home },
@@ -40,7 +59,7 @@ export default function CleaningChecklist() {
           if (error) throw error;
 
           // Calculate stats for each room
-          const stats = {};
+          const stats: Record<string, RoomStat> = {};
           roomTypes.forEach((room) => {
             const roomTasks =
               tasks?.filter((task) => task.room === room.id) || [];
@@ -76,10 +95,17 @@ export default function CleaningChecklist() {
 
         if (data && data.length > 0) {
           // Add custom rooms to the room types
-          const customRooms = data.map((room) => ({
+          const iconMap: Record<string, LucideIcon> = {
+            home: Home,
+            utensils: Utensils,
+            bath: Bath,
+            // Add any other icons you need
+          };
+
+          const customRooms: RoomType[] = data.map((room) => ({
             id: room.slug,
             name: room.name,
-            icon: Home, // Default icon
+            icon: iconMap[room.icon] || Home, // Use the correct icon from the map
           }));
 
           setRoomTypes((prev) => [...prev, ...customRooms]);

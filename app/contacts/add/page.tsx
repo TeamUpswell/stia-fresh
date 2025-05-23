@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
@@ -24,7 +24,7 @@ export default function AddContactPage() {
     priority: 0,
   });
 
-  const handleChange = (e) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -32,7 +32,7 @@ export default function AddContactPage() {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -60,9 +60,10 @@ export default function AddContactPage() {
       // Redirect back to contacts page on success
       router.push("/contacts");
       router.refresh();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error adding contact:", error);
-      setError(error.message);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -105,6 +106,8 @@ export default function AddContactPage() {
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                       required
+                      placeholder="Enter contact name"
+                      aria-label="Contact name"
                     />
                   </div>
 
@@ -118,6 +121,7 @@ export default function AddContactPage() {
                       value={formData.role}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      aria-label="Contact role"
                     >
                       <option value="contractor">Contractor</option>
                       <option value="plumber">Plumber</option>
@@ -140,6 +144,8 @@ export default function AddContactPage() {
                       value={formData.phone}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter phone number"
+                      aria-label="Contact phone number"
                     />
                   </div>
 
@@ -154,6 +160,8 @@ export default function AddContactPage() {
                       value={formData.email}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter email address"
+                      aria-label="Contact email address"
                     />
                   </div>
 
@@ -168,6 +176,8 @@ export default function AddContactPage() {
                       value={formData.website}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter website URL"
+                      aria-label="Contact website"
                     />
                   </div>
 
@@ -182,6 +192,8 @@ export default function AddContactPage() {
                       onChange={handleChange}
                       rows={2}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter physical address"
+                      aria-label="Contact address"
                     />
                   </div>
 
@@ -198,6 +210,8 @@ export default function AddContactPage() {
                       value={formData.priority}
                       onChange={handleChange}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Set priority level"
+                      aria-label="Contact priority level"
                     />
                   </div>
 
@@ -212,6 +226,8 @@ export default function AddContactPage() {
                       onChange={handleChange}
                       rows={3}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      placeholder="Enter description or notes"
+                      aria-label="Contact description"
                     />
                   </div>
                 </div>

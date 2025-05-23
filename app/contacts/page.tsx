@@ -15,10 +15,41 @@ import {
 import Link from "next/link";
 import SideNavigation from "@/components/layout/SideNavigation";
 
+// Define interfaces for the data structures
+interface Contact {
+  id: string;
+  name: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  website?: string;
+  priority?: number;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+}
+
+interface UserRole {
+  role: string;
+}
+
+interface Profile {
+  id: string;
+  full_name?: string;
+  email?: string;
+  phone_number?: string;
+  address?: string;
+  role?: string;
+  show_in_contacts?: boolean;
+  user_roles?: UserRole[];
+}
+
 export default function ContactsPage() {
   const { user } = useAuth();
-  const [contacts, setContacts] = useState([]);
-  const [userContacts, setUserContacts] = useState([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [userContacts, setUserContacts] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -33,9 +64,7 @@ export default function ContactsPage() {
           .order("name");
 
         if (contactsError) throw contactsError;
-        setContacts(contactsData || []);
-
-        // Modify your query to use a simpler approach first
+        setContacts((contactsData as Contact[]) || []);
 
         // Try a more basic query first to see if any profiles exist
         const { data: profilesData, error: profilesError } = await supabase
@@ -53,10 +82,12 @@ export default function ContactsPage() {
         // Then try the join query
         const { data: profilesWithRoles, error: rolesError } = await supabase
           .from("profiles")
-          .select(`
-            *,
-            user_roles(role)
-          `)
+          .select(
+            `
+          *,
+          user_roles(role)
+        `
+          )
           .eq("show_in_contacts", true);
 
         if (rolesError) {
@@ -66,40 +97,48 @@ export default function ContactsPage() {
         }
 
         // Manually assign owner role to known owners by email
-        const processedProfiles = profilesData?.map(profile => {
-          // Known owner emails
-          const ownerEmails = ["drew+12@pdxbernards.com", "drew+11@pdxbernards.com"];
-          
-          // Default role
-          let role = "family";
-          
-          // Check if it's a known owner
-          if (ownerEmails.includes(profile.email)) {
-            role = "owner";
-          } else if (profilesWithRoles) {
-            // Try to find matching profile with role info
-            const profileWithRole = profilesWithRoles.find(p => p.id === profile.id);
-            if (profileWithRole?.user_roles && profileWithRole.user_roles.length > 0) {
-              role = profileWithRole.user_roles[0]?.role || "family";
+        const processedProfiles =
+          (profilesData as any[])?.map((profile: any) => {
+            // Known owner emails
+            const ownerEmails = [
+              "drew+12@pdxbernards.com",
+              "drew+11@pdxbernards.com",
+            ];
+
+            // Default role
+            let role = "family";
+
+            // Check if it's a known owner
+            if (ownerEmails.includes(profile.email)) {
+              role = "owner";
+            } else if (profilesWithRoles) {
+              // Try to find matching profile with role info
+              const profileWithRole = (profilesWithRoles as any[]).find(
+                (p) => p.id === profile.id
+              );
+              if (
+                profileWithRole?.user_roles &&
+                profileWithRole.user_roles.length > 0
+              ) {
+                role = profileWithRole.user_roles[0]?.role || "family";
+              }
             }
-          }
-          
-          return {
-            ...profile,
-            role
-          };
-        }) || [];
+
+            return {
+              ...profile,
+              role,
+            };
+          }) || [];
 
         console.log("Processed profiles with roles:", processedProfiles);
 
         // Filter for owners and managers
-        const ownersAndManagers = processedProfiles.filter(profile => 
-          profile.role === 'owner' || profile.role === 'manager'
+        const ownersAndManagers = processedProfiles.filter(
+          (profile) => profile.role === "owner" || profile.role === "manager"
         );
 
         console.log("Found owners/managers:", ownersAndManagers);
-        setUserContacts(ownersAndManagers);
-        
+        setUserContacts(ownersAndManagers as Profile[]);
       } catch (error) {
         console.error("Error loading contacts:", error);
         setUserContacts([]); // Set empty array instead of hardcoded fallback
@@ -107,7 +146,7 @@ export default function ContactsPage() {
         setLoading(false);
       }
     }
-    
+
     loadData();
   }, [user]);
 
@@ -115,7 +154,7 @@ export default function ContactsPage() {
   console.log("User contacts:", userContacts);
   console.log("Service contacts:", contacts);
 
-  const handleDeleteContact = (contact) => {
+  const handleDeleteContact = (contact: Contact) => {
     // Implement delete functionality here
     console.log("Delete contact:", contact);
   };
@@ -127,15 +166,15 @@ export default function ContactsPage() {
         <main className="flex-1 p-6">
           <div className="mb-8 flex justify-between items-center">
             <h1 className="text-2xl font-semibold">Contacts</h1>
-            <Link 
-              href="/contacts/add" 
+            <Link
+              href="/contacts/add"
               className="flex items-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Contact
             </Link>
           </div>
-          
+
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -163,7 +202,9 @@ export default function ContactsPage() {
                               {profile.full_name || "Unnamed User"}
                             </h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {profile.role === 'owner' ? 'Property Owner' : 'Property Manager'}
+                              {profile.role === "owner"
+                                ? "Property Owner"
+                                : "Property Manager"}
                             </p>
                           </div>
                         </div>
@@ -219,14 +260,14 @@ export default function ContactsPage() {
                       >
                         {/* Change from both Edit and Delete buttons to just Edit */}
                         <div className="absolute top-3 right-3">
-                          <Link 
+                          <Link
                             href={`/contacts/edit/${contact.id}`}
                             className="p-1.5 text-blue-600 hover:text-blue-800 dark:text-blue-400"
                           >
                             <Edit className="h-4 w-4" />
                           </Link>
                         </div>
-                        
+
                         <div className="flex items-start">
                           <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                             <Building className="h-5 w-5 text-gray-600 dark:text-gray-400" />
@@ -280,26 +321,30 @@ export default function ContactsPage() {
               )}
 
               {/* Empty state */}
-              {!loading && contacts.length === 0 && userContacts.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="mx-auto h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                    <UserIcon className="h-6 w-6 text-blue-600" />
+              {!loading &&
+                contacts.length === 0 &&
+                userContacts.length === 0 && (
+                  <div className="text-center py-12">
+                    <div className="mx-auto h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <UserIcon className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
+                      No contacts
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Get started by adding a new contact.
+                    </p>
+                    <div className="mt-6">
+                      <Link
+                        href="/contacts/add"
+                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Plus className="-ml-1 mr-2 h-5 w-5" />
+                        New Contact
+                      </Link>
+                    </div>
                   </div>
-                  <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No contacts</h3>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Get started by adding a new contact.
-                  </p>
-                  <div className="mt-6">
-                    <Link
-                      href="/contacts/add"
-                      className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Plus className="-ml-1 mr-2 h-5 w-5" />
-                      New Contact
-                    </Link>
-                  </div>
-                </div>
-              )}
+                )}
             </div>
           )}
         </main>

@@ -123,7 +123,7 @@ export default function PropertySettings() {
 
   // Fetch property data
   useEffect(() => {
-    async function loadProperty() {
+    async function fetchPropertyData() {
       try {
         let propertyData;
 
@@ -169,7 +169,7 @@ export default function PropertySettings() {
       }
     }
 
-    loadProperty();
+    fetchPropertyData();
   }, [propertyId, reset]);
 
   // Add this to your component for debugging

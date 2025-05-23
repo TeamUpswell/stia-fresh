@@ -15,16 +15,22 @@ export async function getPropertyById(id: string) {
 
 // Get main property (for sites with just one property)
 export async function getMainProperty() {
-  const { data, error } = await supabase
-    .from('properties')
-    .select('*')
-    .eq('is_active', true) // ✓ Confirmed column exists in schema
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*')
+      .single();
     
-  if (error && error.code !== 'PGRST116') throw error;
-  return data;
+    if (error) {
+      console.error('Error fetching main property:', error);
+      return null;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Exception in getMainProperty:', error);
+    return null;
+  }
 }
 
 // Update property
