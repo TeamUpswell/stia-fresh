@@ -23,6 +23,18 @@ export default function ManageChecklistsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  useEffect(() => {
+    if (user) {
+      console.log("Current user:", user);
+      console.log("User role:", user.user_metadata?.role);
+      
+      // Check if user has the required role
+      if (user.user_metadata?.role !== 'manager' && user.user_metadata?.role !== 'owner') {
+        setError("You don't have permission to manage checklists");
+      }
+    }
+  }, [user]);
+
   // Define navigation items (same as in main cleaning page)
   const cleaningNavItems = [
     { name: "Cleaning Schedule", href: "/cleaning", icon: ClipboardList },
@@ -40,16 +52,22 @@ export default function ManageChecklistsPage() {
       if (!user) return;
 
       try {
+        console.log("Fetching checklists...");
         const { data, error } = await supabase
           .from("cleaning_checklists")
-          .select("*, cleaning_checklist_items(*)") // Get checklists with their items
-          .order("id", { ascending: true });
+          .select("*, cleaning_checklist_items(*)");
 
-        if (error) throw error;
+        if (error) {
+          console.error("Supabase error details:", error);
+          setError(`Failed to load checklists: ${error.message}`);
+          return;
+        }
+        
+        console.log("Checklists loaded:", data?.length || 0);
         setChecklists(data || []);
       } catch (error) {
         console.error("Error fetching checklists:", error);
-        setError("Failed to load checklists");
+        setError(`Failed to load checklists: ${error.message || "Unknown error"}`);
       } finally {
         setLoading(false);
       }
@@ -67,16 +85,30 @@ export default function ManageChecklistsPage() {
     }
 
     try {
+      console.log("Creating checklist with data:", {
+        name: newChecklist.name,
+        description: newChecklist.description,
+        created_by: user.id
+      });
+      
       const { data, error } = await supabase
         .from("cleaning_checklists")
         .insert({
+          id: crypto.randomUUID(), // Add this line to generate a UUID
           name: newChecklist.name,
           description: newChecklist.description,
-          created_by: user.id
+          created_by: user.id,
+          created_at: new Date().toISOString() // Make sure created_at is set
         })
         .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error details:", error);
+        setError(`Failed to create checklist: ${error.message}`);
+        return;
+      }
+
+      console.log("Checklist created successfully:", data);
 
       // Add to state (optimistic update)
       setChecklists([...checklists, {...data[0], cleaning_checklist_items: []}]);
@@ -86,7 +118,7 @@ export default function ManageChecklistsPage() {
 
     } catch (error) {
       console.error("Error creating checklist:", error);
-      setError("Failed to create checklist");
+      setError(`Failed to create checklist: ${error.message || "Unknown error"}`);
     }
   };
 
@@ -131,11 +163,7 @@ export default function ManageChecklistsPage() {
     if (!checklistToDelete) return;
 
     try {
-      // Delete all items first (if not handled by cascade)
-      await supabase
-        .from("cleaning_checklist_items")
-        .delete()
-        .eq("checklist_id", checklistToDelete.id);
+      console.log("Deleting checklist:", checklistToDelete.id);
       
       // Then delete the checklist
       const { error } = await supabase
@@ -143,7 +171,10 @@ export default function ManageChecklistsPage() {
         .delete()
         .eq("id", checklistToDelete.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Delete error:", error);
+        throw error;
+      }
 
       // Update state
       setChecklists(checklists.filter(cl => cl.id !== checklistToDelete.id));
@@ -154,7 +185,7 @@ export default function ManageChecklistsPage() {
 
     } catch (error) {
       console.error("Error deleting checklist:", error);
-      setError("Failed to delete checklist");
+      setError(`Failed to delete checklist: ${error.message || "Unknown error"}`);
     }
   };
 

@@ -3,7 +3,18 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { User, UserPlus, Edit, Trash2, Phone, X, Check, Mail, UserCog } from "lucide-react";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+  User,
+  UserPlus,
+  Edit,
+  Trash2,
+  Phone,
+  X,
+  Check,
+  Mail,
+  UserCog,
+} from "lucide-react";
 import PermissionGate from "@/components/PermissionGate";
 import SideNavigation from "@/components/layout/SideNavigation";
 
@@ -21,43 +32,118 @@ export default function UsersPage() {
     phone_number: "",
     address: "",
     show_in_contacts: false,
-    role: "family"
+    role: "family",
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitStatus, setSubmitStatus] = useState({ type: "", message: "" });
 
   useEffect(() => {
     fetchProfiles();
+    checkPermissions();
   }, []);
 
   const fetchProfiles = async () => {
     try {
       setLoading(true);
-      
-      // Directly fetch from profiles table
-      const { data, error } = await supabase
+
+      // Check permissions
+      const { data: permissionCheck, error: permissionError } = await supabase
+        .from("profiles")
+        .select("id")
+        .limit(1);
+
+      console.log("Permission check:", permissionCheck, permissionError);
+
+      // Fetch profiles
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
         .order("full_name");
-      
-      if (error) throw error;
-      setProfiles(data || []);
+
+      if (profileError) {
+        console.error("Error fetching profiles:", profileError);
+        return;
+      }
+
+      // Fetch roles for all users
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("*");
+
+      if (roleError) {
+        console.error("Error fetching roles:", roleError);
+      }
+
+      // Combine profiles with their roles
+      const profilesWithRoles = profileData.map((profile) => {
+        const userRole = roleData?.find((r) => r.user_id === profile.id);
+        return {
+          ...profile,
+          role: userRole?.role || "family", // Default to family if no role found
+        };
+      });
+
+      console.log("Profiles loaded:", profilesWithRoles.length);
+      setProfiles(profilesWithRoles || []);
     } catch (error) {
-      console.error("Error fetching profiles:", error);
+      console.error("Error in fetchProfiles:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  const checkPermissions = async () => {
+    try {
+      console.log("Checking permissions...");
+
+      // Check current user
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+      console.log("Current user:", currentUser);
+
+      // Try test operations
+      const { data: selectData, error: selectError } = await supabase
+        .from("profiles")
+        .select("id")
+        .limit(1); // Added missing closing parenthesis
+
+      console.log("Select test:", selectData, selectError);
+
+      if (selectData && selectData.length > 0) {
+        const testId = selectData[0].id;
+
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", testId);
+
+        console.log("Update test:", updateError);
+      }
+    } catch (error) {
+      console.error("Permission check error:", error);
+    }
+  };
+
   const toggleContactVisibility = async (profileId, currentValue) => {
     try {
-      const { error } = await supabase
+      console.log(
+        `Toggling visibility for profile ${profileId} from ${currentValue} to ${!currentValue}`
+      );
+
+      const { data, error } = await supabase
         .from("profiles")
         .update({ show_in_contacts: !currentValue })
-        .eq("id", profileId);
-      
-      if (error) throw error;
-      
+        .eq("id", profileId.toString())
+        .select();
+
+      console.log("Toggle result:", data, error);
+
+      if (error) {
+        console.error("Error updating visibility:", error);
+        throw error;
+      }
+
       // Update local state
       setProfiles(
         profiles.map((profile) =>
@@ -68,6 +154,7 @@ export default function UsersPage() {
       );
     } catch (error) {
       console.error("Error updating contact visibility:", error);
+      alert(`Failed to update contact visibility: ${error.message}`);
     }
   };
 
@@ -78,7 +165,7 @@ export default function UsersPage() {
       phone_number: "",
       address: "",
       show_in_contacts: false,
-      role: "family"
+      role: "family",
     });
     setFormErrors({});
     setSubmitStatus({ type: "", message: "" });
@@ -93,7 +180,7 @@ export default function UsersPage() {
       phone_number: profile.phone_number || "",
       address: profile.address || "",
       show_in_contacts: profile.show_in_contacts || false,
-      role: profile.role || "family"
+      role: profile.role || "family",
     });
     setFormErrors({});
     setSubmitStatus({ type: "", message: "" });
@@ -109,74 +196,119 @@ export default function UsersPage() {
     const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [name]: type === "checkbox" ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
   const validateForm = () => {
     let errors = {};
-    
+
     if (!formData.full_name.trim()) {
       errors.full_name = "Name is required";
     }
-    
+
     if (!formData.email.trim()) {
       errors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       errors.email = "Email is invalid";
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     try {
       setSubmitStatus({ type: "loading", message: "Creating user..." });
-      
-      // Generate a UUID for the new user
-      const newId = crypto.randomUUID();
-      
-      const { error } = await supabase.from("profiles").insert({
-        id: newId,
+
+      // 1. First, create the user in auth system
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: generateRandomPassword(), // Generate a secure random password
+        options: {
+          data: {
+            full_name: formData.full_name,
+            role: formData.role,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+
+      if (!authData?.user?.id) {
+        throw new Error("Failed to create user account");
+      }
+
+      // 2. Then create the profile using the auth ID
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: authData.user.id, // Use the ID from the created auth user
         full_name: formData.full_name,
         email: formData.email,
         phone_number: formData.phone_number,
         address: formData.address,
         show_in_contacts: formData.show_in_contacts,
-        role: formData.role,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       });
-      
-      if (error) throw error;
-      
-      setSubmitStatus({ type: "success", message: "User created successfully!" });
+
+      if (profileError) throw profileError;
+
+      // 3. Add to user_roles table
+      const { error: roleError } = await supabase.from("user_roles").insert({
+        user_id: authData.user.id,
+        role: formData.role,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        assigned_at: new Date().toISOString(),
+      });
+
+      setSubmitStatus({
+        type: "success",
+        message:
+          "User created successfully! They will receive an email to set their password.",
+      });
       await fetchProfiles();
-      
-      // Close modal after short delay
+
       setTimeout(() => {
         setShowAddModal(false);
-      }, 1500);
-      
+      }, 2500);
     } catch (error) {
-      console.error("Error adding user:", error);
-      setSubmitStatus({ type: "error", message: `Error: ${error.message}` });
+      console.error("Error creating user:", error);
+      setSubmitStatus({
+        type: "error",
+        message: `Error: ${error.message || "Failed to create user"}`,
+      });
     }
   };
 
+  function generateRandomPassword() {
+    // Generate a secure random password (12-16 characters)
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+    const length = Math.floor(Math.random() * 5) + 12; // 12-16 characters
+    let password = "";
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  }
+
   const handleEditUser = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
-    
+
     try {
       setSubmitStatus({ type: "loading", message: "Updating user..." });
-      
-      const { error } = await supabase
+
+      // Ensure ID is a valid UUID string
+      const profileId = currentProfile?.id?.toString();
+
+      // 1. Update profile in Supabase
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({
           full_name: formData.full_name,
@@ -184,21 +316,91 @@ export default function UsersPage() {
           phone_number: formData.phone_number,
           address: formData.address,
           show_in_contacts: formData.show_in_contacts,
-          role: formData.role,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq("id", currentProfile.id);
-      
-      if (error) throw error;
-      
-      setSubmitStatus({ type: "success", message: "User updated successfully!" });
+        .eq("id", profileId);
+
+      if (profileError) throw profileError;
+
+      // 2. Update user_roles if needed
+      try {
+        // Check if user has a role record
+        const { data: roleData, error: roleCheckError } = await supabase
+          .from("user_roles")
+          .select("*")
+          .eq("user_id", profileId);
+
+        if (roleCheckError) throw roleCheckError;
+
+        // If role exists, update it; otherwise, insert new role
+        if (roleData && roleData.length > 0) {
+          const { error: roleUpdateError } = await supabase
+            .from("user_roles")
+            .update({
+              role: formData.role,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("user_id", profileId);
+
+          if (roleUpdateError)
+            console.error("Client-side role update error:", roleUpdateError);
+        } else {
+          const { error: roleInsertError } = await supabase
+            .from("user_roles")
+            .insert({
+              user_id: profileId,
+              role: formData.role,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              assigned_at: new Date().toISOString(),
+            });
+
+          if (roleInsertError)
+            console.error("Client-side role insert error:", roleInsertError);
+        }
+      } catch (roleError) {
+        console.error("Error updating role on client side:", roleError);
+      }
+
+      // 3. Update auth user through API route instead of direct supabaseAdmin
+      const authResponse = await fetch("/api/users/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: profileId,
+          userData: {
+            email: formData.email,
+            full_name: formData.full_name,
+            role: formData.role,
+            phone_number: formData.phone_number,
+            address: formData.address,
+            show_in_contacts: formData.show_in_contacts,
+          },
+        }),
+      });
+
+      const authResult = await authResponse.json();
+      console.log("Complete auth update response:", authResult);
+
+      if (authResult.error) {
+        console.error("Auth update error:", authResult.error);
+        // Show the error to the user
+        setSubmitStatus({
+          type: "warning",
+          message: `User profile updated but role may not have been updated: ${authResult.error}`,
+        });
+      } else {
+        setSubmitStatus({
+          type: "success",
+          message: "User updated successfully!",
+        });
+      }
+
       await fetchProfiles();
-      
-      // Close modal after short delay
+
       setTimeout(() => {
         setShowEditModal(false);
       }, 1500);
-      
     } catch (error) {
       console.error("Error updating user:", error);
       setSubmitStatus({ type: "error", message: `Error: ${error.message}` });
@@ -207,13 +409,34 @@ export default function UsersPage() {
 
   const handleDeleteUser = async () => {
     try {
-      const { error } = await supabase
+      // Delete from user_roles first (foreign key)
+      const { error: roleDeleteError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", currentProfile.id);
+
+      if (roleDeleteError) {
+        console.error("Error deleting user role:", roleDeleteError);
+      }
+
+      // Then delete from profiles
+      const { error: profileDeleteError } = await supabase
         .from("profiles")
         .delete()
         .eq("id", currentProfile.id);
-      
-      if (error) throw error;
-      
+
+      if (profileDeleteError) throw profileDeleteError;
+
+      // Also delete the auth user
+      if (supabaseAdmin) {
+        const { error: authDeleteError } =
+          await supabaseAdmin.auth.admin.deleteUser(currentProfile.id);
+
+        if (authDeleteError) {
+          console.error("Error deleting auth user:", authDeleteError);
+        }
+      }
+
       await fetchProfiles();
       setShowDeleteModal(false);
     } catch (error) {
@@ -298,7 +521,9 @@ export default function UsersPage() {
                                   {profile.full_name || "Unnamed User"}
                                 </div>
                                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {profile.role || "family"}
+                                  {profile.role ||
+                                    profile.user_metadata?.role ||
+                                    "family"}
                                 </div>
                               </div>
                             </div>
@@ -351,13 +576,13 @@ export default function UsersPage() {
                             </button>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button 
+                            <button
                               onClick={() => openEditModal(profile)}
                               className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
                             >
                               <Edit className="h-4 w-4" />
                             </button>
-                            <button 
+                            <button
                               onClick={() => openDeleteModal(profile)}
                               className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                             >
@@ -389,26 +614,28 @@ export default function UsersPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Add New User</h2>
-              <button 
+              <button
                 onClick={() => setShowAddModal(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             {submitStatus.message && (
-              <div className={`mb-4 p-3 rounded ${
-                submitStatus.type === "error" 
-                  ? "bg-red-100 text-red-700 border border-red-200" 
-                  : submitStatus.type === "success"
+              <div
+                className={`mb-4 p-3 rounded ${
+                  submitStatus.type === "error"
+                    ? "bg-red-100 text-red-700 border border-red-200"
+                    : submitStatus.type === "success"
                     ? "bg-green-100 text-green-700 border border-green-200"
                     : "bg-blue-100 text-blue-700 border border-blue-200"
-              }`}>
+                }`}
+              >
                 {submitStatus.message}
               </div>
             )}
-            
+
             <form onSubmit={handleAddUser}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -424,10 +651,12 @@ export default function UsersPage() {
                   }`}
                 />
                 {formErrors.full_name && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.full_name}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.full_name}
+                  </p>
                 )}
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Email*
@@ -442,10 +671,12 @@ export default function UsersPage() {
                   }`}
                 />
                 {formErrors.email && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.email}
+                  </p>
                 )}
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Phone Number
@@ -458,7 +689,7 @@ export default function UsersPage() {
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Address
@@ -471,7 +702,7 @@ export default function UsersPage() {
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Role
@@ -488,7 +719,7 @@ export default function UsersPage() {
                   <option value="owner">Owner</option>
                 </select>
               </div>
-              
+
               <div className="mb-4">
                 <div className="flex items-center">
                   <input
@@ -499,12 +730,15 @@ export default function UsersPage() {
                     onChange={handleInputChange}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="show_in_contacts" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  <label
+                    htmlFor="show_in_contacts"
+                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                  >
                     Show in Contacts
                   </label>
                 </div>
               </div>
-              
+
               <div className="flex justify-end space-x-2 mt-6">
                 <button
                   type="button"
@@ -523,40 +757,44 @@ export default function UsersPage() {
                       <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
                       Adding...
                     </span>
-                  ) : "Add User"}
+                  ) : (
+                    "Add User"
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      
+
       {/* Edit User Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Edit User</h2>
-              <button 
+              <button
                 onClick={() => setShowEditModal(false)}
                 className="text-gray-500 hover:text-gray-700"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             {submitStatus.message && (
-              <div className={`mb-4 p-3 rounded ${
-                submitStatus.type === "error" 
-                  ? "bg-red-100 text-red-700 border border-red-200" 
-                  : submitStatus.type === "success"
+              <div
+                className={`mb-4 p-3 rounded ${
+                  submitStatus.type === "error"
+                    ? "bg-red-100 text-red-700 border border-red-200"
+                    : submitStatus.type === "success"
                     ? "bg-green-100 text-green-700 border border-green-200"
                     : "bg-blue-100 text-blue-700 border border-blue-200"
-              }`}>
+                }`}
+              >
                 {submitStatus.message}
               </div>
             )}
-            
+
             <form onSubmit={handleEditUser}>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -572,10 +810,12 @@ export default function UsersPage() {
                   }`}
                 />
                 {formErrors.full_name && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.full_name}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.full_name}
+                  </p>
                 )}
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Email*
@@ -590,10 +830,12 @@ export default function UsersPage() {
                   }`}
                 />
                 {formErrors.email && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
+                  <p className="mt-1 text-sm text-red-600">
+                    {formErrors.email}
+                  </p>
                 )}
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Phone Number
@@ -606,7 +848,7 @@ export default function UsersPage() {
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Address
@@ -619,7 +861,7 @@ export default function UsersPage() {
                   className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
-              
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Role
@@ -636,7 +878,7 @@ export default function UsersPage() {
                   <option value="owner">Owner</option>
                 </select>
               </div>
-              
+
               <div className="mb-4">
                 <div className="flex items-center">
                   <input
@@ -647,12 +889,15 @@ export default function UsersPage() {
                     onChange={handleInputChange}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="edit_show_in_contacts" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                  <label
+                    htmlFor="edit_show_in_contacts"
+                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                  >
                     Show in Contacts
                   </label>
                 </div>
               </div>
-              
+
               <div className="flex justify-end space-x-2 mt-6">
                 <button
                   type="button"
@@ -671,21 +916,25 @@ export default function UsersPage() {
                       <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
                       Updating...
                     </span>
-                  ) : "Update User"}
+                  ) : (
+                    "Update User"
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      
+
       {/* Delete Confirmation Modal */}
       {showDeleteModal && currentProfile && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h2 className="text-xl font-semibold mb-4">Delete User</h2>
             <p className="text-gray-700 dark:text-gray-300 mb-4">
-              Are you sure you want to delete <strong>{currentProfile.full_name}</strong>? This action cannot be undone.
+              Are you sure you want to delete{" "}
+              <strong>{currentProfile.full_name}</strong>? This action cannot be
+              undone.
             </p>
             <div className="flex justify-end space-x-2">
               <button
