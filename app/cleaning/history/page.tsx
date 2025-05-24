@@ -105,7 +105,7 @@ export default function CleaningHistory() {
       const roomTasks: Record<string, any[]> = {};
       
       tasks?.forEach(task => {
-        const room = task.cleaning_tasks.room;
+        const room = task.cleaning_tasks[0]?.room;
         if (!roomTasks[room]) {
           roomTasks[room] = [];
         }
