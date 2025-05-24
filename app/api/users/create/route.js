@@ -72,17 +72,16 @@ export async function POST(request) {
 
     // 4. Send invitation email after everything is set up
     console.log("Sending invitation email to:", requestData.email);
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      requestData.email,
-      {
-        redirectTo: process.env.NEXT_PUBLIC_BASE_URL 
-          ? `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback` 
+    const { data: inviteData, error: inviteError } =
+      await supabaseAdmin.auth.admin.inviteUserByEmail(requestData.email, {
+        redirectTo: process.env.NEXT_PUBLIC_BASE_URL
+          ? `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`
           : `${process.env.NEXT_PUBLIC_SUPABASE_URL.replace('.supabase.co', '.vercel.app')}/auth/callback`,
         data: {
-          property_name: process.env.NEXT_PUBLIC_PROPERTY_NAME || "Your Property",
+          property_name:
+            process.env.NEXT_PUBLIC_PROPERTY_NAME || "Your Property",
         },
-      }
-    );
+      });
 
     if (inviteError) {
       console.error("Invite error:", inviteError);
@@ -91,10 +90,10 @@ export async function POST(request) {
       console.log("Invitation sent successfully");
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       userId,
-      inviteSent: !inviteError
+      inviteSent: !inviteError,
     });
   } catch (error) {
     console.error("Server error:", error);

@@ -146,7 +146,7 @@ export default function SideNavigation({ user }: SideNavigationProps) {
               <button
                 onClick={() => toggleCategory(section.category)}
                 className={`w-full flex items-center justify-between text-left text-sm font-medium px-4 py-2 ${
-                  document.documentElement.classList.contains("dark")
+                  isDarkMode
                     ? "text-gray-300 hover:text-white"
                     : "text-gray-600 hover:text-gray-900"
                 } mb-1 transition-colors duration-200`}
