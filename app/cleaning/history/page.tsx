@@ -137,9 +137,11 @@ export default function CleaningHistory() {
     let totalTasks = 0;
     let completedTasks = 0;
     
-    Object.values(visitDetails.roomTasks).forEach((tasks: any[]) => {
-      totalTasks += tasks.length;
-      completedTasks += tasks.filter(task => task.is_completed).length;
+    Object.values(visitDetails.roomTasks).forEach((tasks) => {
+      if (Array.isArray(tasks)) {
+        totalTasks += tasks.length;
+        completedTasks += tasks.filter(task => task.is_completed).length;
+      }
     });
     
     return {
