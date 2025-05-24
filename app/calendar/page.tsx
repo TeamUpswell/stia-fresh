@@ -1,15 +1,16 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect, useCallback } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
+import { useProperty } from "@/lib/hooks/useProperty"; // Add this
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import styles from "./calendar.module.css";
 import { PlusCircle } from "lucide-react";
-import { getMainProperty } from "@/lib/propertyService";
-import { Property } from "@/types/index";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -49,6 +50,7 @@ const statusColors: Record<string, string> = {
 
 export default function ReservationCalendar() {
   const { user, loading } = useAuth();
+  const { currentProperty } = useProperty(); // Add this
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showReservationModal, setShowReservationModal] = useState(false);
@@ -63,7 +65,6 @@ export default function ReservationCalendar() {
     status: "pending approval", // Changed from "tentative"
     allDay: true,
   });
-  const [property, setProperty] = useState<Property | null>(null);
 
   // Auth provider needs to handle missing user role mappings
   // Check role structure matches user_roles table columns
@@ -90,15 +91,19 @@ export default function ReservationCalendar() {
 
   const fetchReservations = useCallback(async () => {
     try {
+      if (!currentProperty) {
+        setReservations([]);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       const { data, error } = await supabase
         .from("reservations")
         .select("*")
-        .eq("user_id", user?.id);
+        .eq("property_id", currentProperty.id); // Filter by current property
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       if (data) {
         // Transform database reservations to calendar events
@@ -123,26 +128,24 @@ export default function ReservationCalendar() {
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [currentProperty]); // Changed dependency
 
   useEffect(() => {
-    if (user) {
+    if (currentProperty) {
       fetchReservations();
     }
-  }, [user, fetchReservations]);
+  }, [currentProperty, fetchReservations]); // Changed dependency
 
-  useEffect(() => {
-    async function loadPropertyData() {
-      try {
-        const propertyData = await getMainProperty();
-        setProperty(propertyData);
-      } catch (error) {
-        console.error("Error loading property:", error);
-      }
-    }
-
-    loadPropertyData();
-  }, []);
+  // Remove the old property loading useEffect and replace with:
+  if (!currentProperty) {
+    return (
+      <AuthenticatedLayout>
+        <div className="p-4">
+          <p>Please select a property to view its calendar.</p>
+        </div>
+      </AuthenticatedLayout>
+    );
+  }
 
   const handleReservationSelect = (reservation: Reservation) => {
     setSelectedReservation(reservation);
@@ -256,11 +259,9 @@ export default function ReservationCalendar() {
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
         <header className="mb-6">
           <div className="flex justify-between items-center">
-            {property && (
-              <h1 className="text-2xl font-bold mb-4">
-                {property.name} Availability
-              </h1>
-            )}
+            <h1 className="text-2xl font-bold mb-4">
+              {currentProperty.name} Availability
+            </h1>
             <button
               onClick={() =>
                 handleSlotSelect({

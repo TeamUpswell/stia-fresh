@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth";
-import { useProperty } from "@/components/PropertyContext";
+import { useAuth } from "@/components/AuthProvider";
+import { useProperty } from "@/lib/hooks/useProperty";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
@@ -68,9 +68,11 @@ type Property = {
   parking_info: string;
 };
 
+export const dynamic = "force-dynamic";
+
 export default function ManualPage() {
   const { user } = useAuth();
-  const { property, loading: propertyLoading } = useProperty();
+  const { currentProperty } = useProperty();
   const [sections, setSections] = useState<ManualSection[]>([]);
   const [items, setItems] = useState<ManualItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,20 +162,22 @@ export default function ManualPage() {
   return (
     <AuthenticatedLayout>
       <div className="container mx-auto py-6 px-4 max-w-5xl">
-        {loading || propertyLoading ? (
+        {loading || !currentProperty ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : (
           <div className="space-y-8">
             {/* Property Name Header */}
-            {property && (
+            {currentProperty && (
               <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold mb-2">{property.name}</h1>
+                <h1 className="text-3xl font-bold mb-2">
+                  {currentProperty.name}
+                </h1>
                 <p className="text-gray-600 flex items-center justify-center">
                   <MapPin className="h-4 w-4 mr-1" />
-                  {property.address}, {property.city}, {property.state}{" "}
-                  {property.zip}
+                  {currentProperty.address}, {currentProperty.city},{" "}
+                  {currentProperty.state} {currentProperty.zip}
                 </p>
               </div>
             )}
@@ -219,7 +223,7 @@ export default function ManualPage() {
             )}
 
             {/* Essential Property Information */}
-            {property && (
+            {currentProperty && (
               <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
                 <div className="p-6">
                   <h2 className="text-xl font-bold mb-4 flex items-center">
@@ -239,11 +243,11 @@ export default function ManualPage() {
                       <div className="pl-7">
                         <p className="text-sm mb-1 text-black">
                           <span className="font-medium">Network:</span>{" "}
-                          {property.wifi_name || "Not provided"}
+                          {currentProperty.wifi_name || "Not provided"}
                         </p>
                         <p className="text-sm text-black">
                           <span className="font-medium">Password:</span>{" "}
-                          {property.wifi_password || "Not provided"}
+                          {currentProperty.wifi_password || "Not provided"}
                         </p>
                       </div>
                     </div>
@@ -257,13 +261,15 @@ export default function ManualPage() {
                       <div className="pl-7 space-y-1 text-sm">
                         <p className="text-black">
                           <span className="font-medium">Check-in:</span>{" "}
-                          {property.check_in_instructions?.split("\n")[0] ||
-                            "See details below"}
+                          {currentProperty.check_in_instructions?.split(
+                            "\n"
+                          )[0] || "See details below"}
                         </p>
                         <p className="text-black">
                           <span className="font-medium">Check-out:</span>{" "}
-                          {property.check_out_instructions?.split("\n")[0] ||
-                            "See details below"}
+                          {currentProperty.check_out_instructions?.split(
+                            "\n"
+                          )[0] || "See details below"}
                         </p>
                       </div>
                     </div>
@@ -271,7 +277,7 @@ export default function ManualPage() {
 
                   {/* Additional Key Information Cards */}
                   <div className="space-y-4">
-                    {property.parking_info && (
+                    {currentProperty.parking_info && (
                       <div className="border rounded-lg overflow-hidden">
                         <button
                           onClick={() => toggleCard("parking")}
@@ -295,7 +301,7 @@ export default function ManualPage() {
                             <div
                               className="prose max-w-none"
                               dangerouslySetInnerHTML={{
-                                __html: property.parking_info,
+                                __html: currentProperty.parking_info,
                               }}
                             />
                           </div>
@@ -303,7 +309,7 @@ export default function ManualPage() {
                       </div>
                     )}
 
-                    {property.security_info && (
+                    {currentProperty.security_info && (
                       <div className="border rounded-lg overflow-hidden">
                         <button
                           onClick={() => toggleCard("security")}
@@ -327,7 +333,7 @@ export default function ManualPage() {
                             <div
                               className="prose max-w-none"
                               dangerouslySetInnerHTML={{
-                                __html: property.security_info,
+                                __html: currentProperty.security_info,
                               }}
                             />
                           </div>
@@ -340,31 +346,34 @@ export default function ManualPage() {
             )}
 
             {/* Location & Map */}
-            {property && property.latitude && property.longitude && (
-              <div className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="p-6">
-                  <h2 className="text-xl font-bold mb-4 flex items-center">
-                    <MapPin className="h-5 w-5 mr-2 text-blue-500" />
-                    Location
-                  </h2>
-                  <div className="mb-4">
-                    <div
-                      className="prose max-w-none mb-4"
-                      dangerouslySetInnerHTML={{
-                        __html: property.neighborhood_description || "",
-                      }}
-                    />
-                  </div>
-                  <div className="h-64 w-full rounded-lg overflow-hidden">
-                    <GoogleMapComponent
-                      latitude={property.latitude}
-                      longitude={property.longitude}
-                      address={property.address}
-                    />
+            {currentProperty &&
+              currentProperty.latitude &&
+              currentProperty.longitude && (
+                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                  <div className="p-6">
+                    <h2 className="text-xl font-bold mb-4 flex items-center">
+                      <MapPin className="h-5 w-5 mr-2 text-blue-500" />
+                      Location
+                    </h2>
+                    <div className="mb-4">
+                      <div
+                        className="prose max-w-none mb-4"
+                        dangerouslySetInnerHTML={{
+                          __html:
+                            currentProperty.neighborhood_description || "",
+                        }}
+                      />
+                    </div>
+                    <div className="h-64 w-full rounded-lg overflow-hidden">
+                      <GoogleMapComponent
+                        latitude={currentProperty.latitude}
+                        longitude={currentProperty.longitude}
+                        address={currentProperty.address}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
             {/* Additional Manual Sections */}
             {itemsBySection.map((section) => (

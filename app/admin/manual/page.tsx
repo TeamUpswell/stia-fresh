@@ -1,8 +1,10 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth";
-import { useProperty } from "@/components/PropertyContext";
+import { useAuth } from "@/components/AuthProvider";
+import { useProperty } from "@/lib/hooks/useProperty";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import PermissionGate from "@/components/PermissionGate";
 import { supabase } from "@/lib/supabase";
@@ -46,9 +48,9 @@ interface ManualItem {
   created_at?: string;
 }
 
-export default function ManualAdminPage() {
+export default function AdminManualPage() {
   const { user, hasPermission } = useAuth();
-  const { property, loading: propertyLoading } = useProperty(); // Use the property context
+  const { currentProperty } = useProperty();
   const [sections, setSections] = useState<ManualSection[]>([]);
   const [items, setItems] = useState<ManualItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,7 +187,7 @@ export default function ManualAdminPage() {
           )}
         </div>
 
-        {loading || propertyLoading ? (
+        {loading || !currentProperty ? (
           <div className="flex justify-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
@@ -301,7 +303,7 @@ export default function ManualAdminPage() {
                       <div>
                         <h2 className="text-xl font-bold mb-2 flex items-center">
                           <Home size={20} className="mr-2" />
-                          {property?.name || "Property Information"}
+                          {currentProperty?.name || "Property Information"}
 
                           {editMode && checkRole(["owner", "manager"]) && (
                             <button
@@ -323,8 +325,8 @@ export default function ManualAdminPage() {
                             size={18}
                           />
                           <p className="text-gray-700">
-                            {property?.address}, {property?.city},{" "}
-                            {property?.state} {property?.zip}
+                            {currentProperty?.address}, {currentProperty?.city},{" "}
+                            {currentProperty?.state} {currentProperty?.zip}
                           </p>
                         </div>
 
@@ -334,7 +336,7 @@ export default function ManualAdminPage() {
                           </h3>
                           <div className="prose max-w-none">
                             <ReactMarkdown>
-                              {property?.description || ""}
+                              {currentProperty?.description || ""}
                             </ReactMarkdown>
                           </div>
                         </div>
@@ -345,7 +347,7 @@ export default function ManualAdminPage() {
                           </h3>
                           <div className="prose max-w-none">
                             <ReactMarkdown>
-                              {property?.neighborhood_description || ""}
+                              {currentProperty?.neighborhood_description || ""}
                             </ReactMarkdown>
                           </div>
                         </div>
@@ -380,7 +382,7 @@ export default function ManualAdminPage() {
                           </h3>
                           <div className="prose max-w-none">
                             <ReactMarkdown>
-                              {property?.check_in_instructions || ""}
+                              {currentProperty?.check_in_instructions || ""}
                             </ReactMarkdown>
                           </div>
                         </div>
@@ -391,7 +393,7 @@ export default function ManualAdminPage() {
                           </h3>
                           <div className="prose max-w-none">
                             <ReactMarkdown>
-                              {property?.check_out_instructions || ""}
+                              {currentProperty?.check_out_instructions || ""}
                             </ReactMarkdown>
                           </div>
                         </div>
@@ -402,7 +404,7 @@ export default function ManualAdminPage() {
                           </h3>
                           <div className="prose max-w-none">
                             <ReactMarkdown>
-                              {property?.house_rules || ""}
+                              {currentProperty?.house_rules || ""}
                             </ReactMarkdown>
                           </div>
                         </div>
@@ -436,10 +438,11 @@ export default function ManualAdminPage() {
                           WiFi Information
                         </h3>
                         <p>
-                          <strong>Network:</strong> {property?.wifi_name}
+                          <strong>Network:</strong> {currentProperty?.wifi_name}
                         </p>
                         <p>
-                          <strong>Password:</strong> {property?.wifi_password}
+                          <strong>Password:</strong>{" "}
+                          {currentProperty?.wifi_password}
                         </p>
                       </div>
 
@@ -450,7 +453,7 @@ export default function ManualAdminPage() {
                         </h3>
                         <div className="prose max-w-none">
                           <ReactMarkdown>
-                            {property?.parking_info || ""}
+                            {currentProperty?.parking_info || ""}
                           </ReactMarkdown>
                         </div>
                       </div>
@@ -462,7 +465,7 @@ export default function ManualAdminPage() {
                         </h3>
                         <div className="prose max-w-none">
                           <ReactMarkdown>
-                            {property?.security_info || ""}
+                            {currentProperty?.security_info || ""}
                           </ReactMarkdown>
                         </div>
                       </div>

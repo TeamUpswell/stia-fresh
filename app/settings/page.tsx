@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import ProfileForm from "@/components/features/settings/ProfileForm";

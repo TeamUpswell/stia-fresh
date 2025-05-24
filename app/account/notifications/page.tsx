@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function NotificationsPage() {
   const { user } = useAuth();

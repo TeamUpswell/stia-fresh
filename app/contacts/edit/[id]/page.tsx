@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import SideNavigation from "@/components/layout/SideNavigation";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";

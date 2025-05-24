@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import { useTenant } from "@/lib/hooks/useTenant";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";

@@ -1,7 +1,10 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
+import { useProperty } from "@/lib/hooks/useProperty";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import {
@@ -23,7 +26,6 @@ import Image from "next/image";
 import { toast } from "react-hot-toast";
 import PlaceSearch from "@/components/PlaceSearch";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { getMainProperty } from "@/lib/propertyService";
 
 // Import the types from the Google Maps API
 type PlaceResult = google.maps.places.PlaceResult;
@@ -61,6 +63,7 @@ interface RecommendationNote {
 
 export default function RecommendationsPage() {
   const { user, hasPermission } = useAuth();
+  const { currentProperty } = useProperty();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -85,7 +88,7 @@ export default function RecommendationsPage() {
   const [editingRecommendation, setEditingRecommendation] =
     useState<Recommendation | null>(null);
   const [newNotes, setNewNotes] = useState<Record<string, string>>({});
-  const [property, setProperty] = useState(null);
+  // const [property, setProperty] = useState(null); // Removed this line
 
   // For category management
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -93,114 +96,98 @@ export default function RecommendationsPage() {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoryEditName, setCategoryEditName] = useState("");
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("recommendation_categories")
+        .select("name")
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
+
+      if (data) {
+        console.log("Categories loaded:", data);
+        setCategories(data.map((item) => item.name));
+      } else {
+        console.log("No categories found");
+        setCategories([]);
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      // Don't show toast during SSR
+      if (typeof window !== 'undefined') {
+        toast.error("Failed to load categories");
+      }
+    }
+  }, []);
+
   const fetchRecommendations = useCallback(async () => {
-    if (!user) return;
+    if (!user || !currentProperty) return;
 
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("recommendations")
         .select("*")
+        .eq("property_id", currentProperty.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setRecommendations(data || []);
+      
+      const recommendations = data || [];
+      setRecommendations(recommendations);
+      
+      // Load notes for these recommendations
+      if (recommendations.length > 0) {
+        await fetchNotes(recommendations);
+      }
     } catch (error) {
       console.error("Error fetching recommendations:", error);
     } finally {
       setLoading(false);
     }
-  }, [user, setLoading, setRecommendations]);
+  }, [user, currentProperty]);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const propertyData = await getMainProperty();
-        setProperty(propertyData);
+        if (!currentProperty) {
+          setLoading(false);
+          return;
+        }
 
-        // Load categories regardless of user permission
+        // Load categories first
         await fetchCategories();
 
-        // Debug: Log permissions to verify they work
-        console.log("User Permissions:", {
-          isOwner: hasPermission("owner"),
-          isManager: hasPermission("manager"),
-        });
-
-        // Load recommendations if property has coordinates
-        if (propertyData?.latitude && propertyData?.longitude) {
-          loadNearbyRecommendations(
-            propertyData.latitude,
-            propertyData.longitude
-          );
-        }
+        // Then load recommendations
+        await fetchRecommendations();
       } catch (error) {
         console.error("Error loading data:", error);
+        setLoading(false);
       }
     }
 
     loadData();
-  }, []);
-
-  const loadNearbyRecommendations = async (
-    latitude: number,
-    longitude: number
-  ) => {
-    try {
-      // Fetch recommendations near the specified coordinates
-      const { data, error } = await supabase
-        .from("recommendations")
-        .select("*")
-        .or(
-          `coordinates->lat.gte.${latitude - 0.05},coordinates->lat.lte.${
-            latitude + 0.05
-          }`
-        )
-        .or(
-          `coordinates->lng.gte.${longitude - 0.05},coordinates->lng.lte.${
-            longitude + 0.05
-          }`
-        )
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setRecommendations(data || []);
-
-      // Also extract unique categories for filtering
-      if (data && data.length > 0) {
-        const uniqueCategories = Array.from(
-          new Set(data.map((item) => item.category))
-        );
-        setCategories(uniqueCategories);
-      }
-    } catch (error) {
-      console.error("Error loading nearby recommendations:", error);
-      toast.error("Failed to load nearby recommendations");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [currentProperty, fetchCategories, fetchRecommendations]);
 
   const fetchNotes = async (recommendations: Recommendation[]) => {
     if (recommendations.length === 0) return;
 
     try {
-      // Get notes data from Supabase (This part is missing)
       const { data: notesData, error: notesError } = await supabase
         .from("recommendation_notes")
-        .select(
-          `
+        .select(`
           *,
           profiles:user_id (
             full_name,
             avatar_url
           )
-        `
-        )
-        .in(
-          "recommendation_id",
-          recommendations.map((rec) => rec.id)
-        );
+        `)
+        .in("recommendation_id", recommendations.map((rec) => rec.id));
 
       if (notesError) throw notesError;
 
@@ -247,12 +234,18 @@ export default function RecommendationsPage() {
   const handleAddRecommendation = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentProperty) {
+      toast.error("No property selected");
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("recommendations")
         .insert([
           {
             ...newRecommendation,
+            property_id: currentProperty.id, // Add this
             images: newRecommendation.images.filter((img) => img.trim() !== ""),
           },
         ])
@@ -403,27 +396,29 @@ export default function RecommendationsPage() {
 
   const handleAddNote = async (recommendationId: string) => {
     if (!user) {
-      toast.error("You must be logged in to add notes");
+      if (typeof window !== 'undefined') {
+        toast.error("You must be logged in to add notes");
+      }
       return;
     }
 
     const noteContent = newNotes[recommendationId];
     if (!noteContent || noteContent.trim() === "") {
-      toast.error("Note cannot be empty");
+      if (typeof window !== 'undefined') {
+        toast.error("Note cannot be empty");
+      }
       return;
     }
 
     try {
-      // Add the note
       const { data: newNote, error } = await supabase
         .from("recommendation_notes")
-        .insert([
-          {
-            recommendation_id: recommendationId,
-            user_id: user.id,
-            content: noteContent,
-          },
-        ]).select(`
+        .insert([{
+          recommendation_id: recommendationId,
+          user_id: user.id,
+          content: noteContent,
+        }])
+        .select(`
           id, 
           recommendation_id, 
           user_id, 
@@ -443,42 +438,33 @@ export default function RecommendationsPage() {
         [recommendationId]: "",
       });
 
-      // Update the notes directly in state
       if (newNote && newNote.length > 0) {
-        // Add more defensive code to prevent crashes
-        try {
-          const profiles = newNote[0].profiles;
-          let profile = null;
+        const profiles = newNote[0].profiles;
+        const profile = Array.isArray(profiles) ? profiles[0] : profiles;
 
-          // Handle all possible data shapes
-          if (profiles) {
-            profile = Array.isArray(profiles) ? profiles[0] : profiles;
-          }
+        const formattedNote = {
+          ...newNote[0],
+          user_name: profile?.full_name || "Anonymous User",
+          user_avatar: profile?.avatar_url || null,
+        };
 
-          const formattedNote = {
-            ...newNote[0],
-            user_name: profile?.full_name || "Anonymous User",
-            user_avatar: profile?.avatar_url || null,
-          };
-
-          setNotes((prevNotes) => ({
-            ...prevNotes,
-            [recommendationId]: [
-              formattedNote,
-              ...(prevNotes[recommendationId] || []),
-            ],
-          }));
-        } catch (err) {
-          console.error("Error formatting note data:", err);
-          // Still update the UI even if formatting fails
-          toast.success("Note added!");
-        }
+        setNotes((prevNotes) => ({
+          ...prevNotes,
+          [recommendationId]: [
+            formattedNote,
+            ...(prevNotes[recommendationId] || []),
+          ],
+        }));
       }
 
-      toast.success("Note added!");
+      if (typeof window !== 'undefined') {
+        toast.success("Note added!");
+      }
     } catch (error) {
       console.error("Error adding note:", error);
-      toast.error("Failed to add note");
+      if (typeof window !== 'undefined') {
+        toast.error("Failed to add note");
+      }
     }
   };
 
@@ -603,33 +589,6 @@ export default function RecommendationsPage() {
     );
   };
 
-  // Fetch categories from database
-  const fetchCategories = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("recommendation_categories")
-        .select("name")
-        .eq("is_active", true)
-        .order("name");
-
-      if (error) {
-        console.error("Supabase error:", error);
-        throw error;
-      }
-
-      if (data) {
-        console.log("Categories loaded:", data);
-        setCategories(data.map((item) => item.name));
-      } else {
-        console.log("No categories found");
-        setCategories([]);
-      }
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-      toast.error("Failed to load categories");
-    }
-  };
-
   // Add new category
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -717,6 +676,17 @@ export default function RecommendationsPage() {
     }
   };
 
+  // Add check for currentProperty
+  if (!currentProperty) {
+    return (
+      <AuthenticatedLayout>
+        <div className="container mx-auto py-8 px-4 text-center">
+          <p>Please select a property to view recommendations.</p>
+        </div>
+      </AuthenticatedLayout>
+    );
+  }
+
   return (
     <AuthenticatedLayout>
       <ErrorBoundary
@@ -741,7 +711,9 @@ export default function RecommendationsPage() {
         <div className="container mx-auto py-8 px-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold">Local Recommendations</h1>
+              <h1 className="text-3xl font-bold">
+                {currentProperty.name} - Local Recommendations
+              </h1>
               <button
                 onClick={() => setShowAddForm(!showAddForm)}
                 className="flex items-center space-x-1 bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"

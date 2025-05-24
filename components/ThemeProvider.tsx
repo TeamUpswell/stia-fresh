@@ -1,14 +1,8 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-type Theme = "light" | "dark" | "system";
+type Theme = 'dark' | 'light' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
@@ -16,36 +10,37 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "system",
+  theme: 'system',
   setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("system");
+  const [theme, setTheme] = useState<Theme>('system');
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme;
+    // Get theme from localStorage or default to system
+    const savedTheme = localStorage.getItem('theme') as Theme;
     if (savedTheme) {
       setTheme(savedTheme);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("theme", theme);
+    // Apply theme to document
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
 
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else if (theme === "light") {
-      document.documentElement.classList.remove("dark");
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
+      root.classList.add(systemTheme);
     } else {
-      // system theme
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (isDark) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
+      root.classList.add(theme);
     }
+
+    // Save to localStorage
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
   return (
@@ -56,9 +51,5 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (context === undefined) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return context;
+  return useContext(ThemeContext);
 }

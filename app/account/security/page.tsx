@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { Key, Shield, LogOut } from "lucide-react";
 

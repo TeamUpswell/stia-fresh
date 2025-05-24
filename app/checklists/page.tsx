@@ -1,9 +1,11 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect, useCallback } from "react";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import PermissionGate from "@/components/PermissionGate";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { supabase } from "@/lib/supabase";
 import ChecklistCard from "@/components/features/checklists/ChecklistCard";

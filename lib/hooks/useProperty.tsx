@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useTenant } from "./useTenant";
-import { useAuth } from "../auth";
+import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "../supabase";
 
 interface Property {
@@ -25,15 +25,15 @@ interface PropertyContextType {
 const PropertyContext = createContext<PropertyContextType | undefined>(undefined);
 
 export function PropertyProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const { userTenants } = useTenant(); // Get all tenants user has access to
+  const { user, loading: authLoading } = useAuth();
+  const { userTenants, isLoading: tenantLoading } = useTenant();
   const [properties, setProperties] = useState<Property[]>([]);
   const [currentProperty, setCurrentProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadProperties = async () => {
-    if (!user || !userTenants.length) {
+    if (!user || !userTenants.length || authLoading || tenantLoading) {
       setProperties([]);
       setCurrentProperty(null);
       setIsLoading(false);
@@ -43,16 +43,14 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      // Get all tenant IDs where user has access
       const tenantIds = userTenants.map(tenant => tenant.id);
       
       console.log("Loading properties for user tenants:", tenantIds);
       
-      // Get properties from all tenants user has access to
       const { data, error } = await supabase
         .from("properties")
         .select("*")
-        .in("tenant_id", tenantIds) // Only properties from user's tenants
+        .in("tenant_id", tenantIds)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -60,23 +58,24 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
       console.log("Loaded properties:", data);
       setProperties(data || []);
       
-      // Auto-select first property if none selected
       if ((data || []).length > 0 && !currentProperty) {
         const firstProperty = data[0];
         setCurrentProperty(firstProperty);
-        localStorage.setItem('currentPropertyId', firstProperty.id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentPropertyId', firstProperty.id);
+        }
       }
       
-      // Check if previously selected property still exists and user still has access
-      const savedPropertyId = localStorage.getItem('currentPropertyId');
-      if (savedPropertyId) {
-        const savedProperty = (data || []).find(p => p.id === savedPropertyId);
-        if (savedProperty) {
-          setCurrentProperty(savedProperty);
-        } else if ((data || []).length > 0) {
-          // If saved property no longer accessible, select first available
-          setCurrentProperty(data[0]);
-          localStorage.setItem('currentPropertyId', data[0].id);
+      if (typeof window !== 'undefined') {
+        const savedPropertyId = localStorage.getItem('currentPropertyId');
+        if (savedPropertyId) {
+          const savedProperty = (data || []).find(p => p.id === savedPropertyId);
+          if (savedProperty) {
+            setCurrentProperty(savedProperty);
+          } else if ((data || []).length > 0) {
+            setCurrentProperty(data[0]);
+            localStorage.setItem('currentPropertyId', data[0].id);
+          }
         }
       }
     } catch (err) {
@@ -91,23 +90,26 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
     const property = properties.find(p => p.id === propertyId);
     if (property) {
       setCurrentProperty(property);
-      localStorage.setItem('currentPropertyId', propertyId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('currentPropertyId', propertyId);
+      }
       console.log("Switched to property:", property.name);
     }
   };
 
   useEffect(() => {
-    if (userTenants.length > 0) {
+    // Only load when auth and tenant loading are complete
+    if (!authLoading && !tenantLoading && userTenants.length > 0) {
       loadProperties();
     }
-  }, [userTenants, user]);
+  }, [userTenants, user, authLoading, tenantLoading]);
 
   return (
     <PropertyContext.Provider
       value={{
         currentProperty,
         properties,
-        isLoading,
+        isLoading: isLoading || authLoading || tenantLoading,
         error,
         switchProperty,
         refreshProperties: loadProperties,
@@ -121,6 +123,17 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
 export function useProperty() {
   const context = useContext(PropertyContext);
   if (context === undefined) {
+    // Return safe defaults during SSR
+    if (typeof window === 'undefined') {
+      return {
+        currentProperty: null,
+        properties: [],
+        isLoading: true,
+        error: null,
+        switchProperty: () => {},
+        refreshProperties: async () => {},
+      };
+    }
     throw new Error("useProperty must be used within a PropertyProvider");
   }
   return context;

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/components/AuthProvider";
 import { useTenant } from "@/lib/hooks/useTenant";
 import { useProperty } from "@/lib/hooks/useProperty";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
