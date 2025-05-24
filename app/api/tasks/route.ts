@@ -26,22 +26,26 @@ export async function POST(request: Request) {
   try {
     const { title, description } = await request.json();
 
+    // Add a proper return type to tell TypeScript what to expect
     const { data, error } = await supabase
       .from("tasks")
-      .insert([{ title, description }]);
+      .insert([{ title, description }])
+      .select(); // Add .select() to get the inserted data back
 
     if (error) {
       console.error("Supabase query error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (!data || data.length === 0) {
+    // Use Array.isArray instead of checking length directly
+    if (!data || Array.isArray(data) && data.length === 0) {
       return NextResponse.json(
         { message: "Task created but no data returned" },
         { status: 201 }
       );
     }
-    return NextResponse.json(data[0], { status: 201 });
+    
+    return NextResponse.json(Array.isArray(data) ? data[0] : data, { status: 201 });
   } catch (err) {
     console.error("Tasks API error:", err);
     return NextResponse.json(
@@ -59,14 +63,20 @@ export async function PUT(request: Request) {
     const { data, error } = await supabase
       .from("tasks")
       .update({ title, description })
-      .eq("id", id);
+      .eq("id", id)
+      .select(); // Add .select() to get the updated data
 
     if (error) {
       console.error("Supabase query error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data[0]);
+    // Handle potentially null/empty data
+    if (!data || Array.isArray(data) && data.length === 0) {
+      return NextResponse.json({ message: "Task updated" });
+    }
+    
+    return NextResponse.json(Array.isArray(data) ? data[0] : data);
   } catch (err) {
     console.error("Tasks API error:", err);
     return NextResponse.json(
