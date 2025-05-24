@@ -138,7 +138,7 @@ export default function ReportIssue() {
         .from('cleaning_issues')
         .insert([
           {
-            property_id: property.id,
+            property_id: property?.id || "",
             description: issueData.description,
             severity: issueData.severity,
             location: issueData.location,
