@@ -264,58 +264,64 @@ export default function CleaningHistory() {
                         No tasks found for this cleaning session
                       </div>
                     ) : (
-                      Object.entries(visitDetails.roomTasks).map(([room, tasks]: [string, any[]]) => (
-                        <div key={room} className="mb-6 last:mb-0">
-                          <h3 className="font-medium mb-2 text-gray-800">
-                            {formatRoomName(room)}
-                          </h3>
-                          
-                          <div className="bg-gray-50 rounded-md">
-                            {tasks.map(task => (
-                              <div key={task.id} className="p-3 border-b border-gray-100 last:border-0">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center">
-                                    {task.is_completed ? (
-                                      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-green-500 mr-3">
-                                        <Check className="h-3 w-3 text-white" />
+                      Object.entries(visitDetails.roomTasks).map(([room, tasks]) => {
+                        // Safely check if tasks is an array before rendering
+                        if (Array.isArray(tasks)) {
+                          return (
+                            <div key={room} className="mb-6 last:mb-0">
+                              <h3 className="font-medium mb-2 text-gray-800">
+                                {formatRoomName(room)}
+                              </h3>
+                              
+                              <div className="bg-gray-50 rounded-md">
+                                {tasks.map(task => (
+                                  <div key={task.id} className="p-3 border-b border-gray-100 last:border-0">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center">
+                                        {task.is_completed ? (
+                                          <div className="flex items-center justify-center h-5 w-5 rounded-full bg-green-500 mr-3">
+                                            <Check className="h-3 w-3 text-white" />
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center justify-center h-5 w-5 rounded-full bg-gray-300 mr-3">
+                                            <X className="h-3 w-3 text-white" />
+                                          </div>
+                                        )}
+                                        <span className={task.is_completed ? "" : "text-gray-500"}>
+                                          {task.cleaning_tasks.name}
+                                        </span>
                                       </div>
-                                    ) : (
-                                      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-gray-300 mr-3">
-                                        <X className="h-3 w-3 text-white" />
+                                      
+                                      {task.is_completed && task.completed_at && (
+                                        <div className="text-xs text-gray-500">
+                                          {new Date(task.completed_at).toLocaleTimeString([], {
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                    
+                                    {/* Task photo if uploaded */}
+                                    {task.photo_url && (
+                                      <div className="mt-2 pl-8">
+                                        <div className="relative h-24 w-32 rounded overflow-hidden">
+                                          <img 
+                                            src={task.photo_url} 
+                                            alt={`Photo for ${task.cleaning_tasks.name}`}
+                                            className="object-cover w-full h-full"
+                                          />
+                                        </div>
                                       </div>
                                     )}
-                                    <span className={task.is_completed ? "" : "text-gray-500"}>
-                                      {task.cleaning_tasks.name}
-                                    </span>
                                   </div>
-                                  
-                                  {task.is_completed && task.completed_at && (
-                                    <div className="text-xs text-gray-500">
-                                      {new Date(task.completed_at).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* Task photo if uploaded */}
-                                {task.photo_url && (
-                                  <div className="mt-2 pl-8">
-                                    <div className="relative h-24 w-32 rounded overflow-hidden">
-                                      <img 
-                                        src={task.photo_url} 
-                                        alt={`Photo for ${task.cleaning_tasks.name}`}
-                                        className="object-cover w-full h-full"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))
+                            </div>
+                          );
+                        }
+                        return null; // Skip this entry if tasks is not an array
+                      })
                     )}
                   </div>
                 </div>
