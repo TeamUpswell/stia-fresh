@@ -1,6 +1,8 @@
-import { AuthProvider } from "@/components/AuthProvider";
+import { ReactNode } from "react";
+import { AuthProvider } from "@/lib/auth";
+import { TenantProvider } from "@/lib/hooks/useTenant";
+import { PropertyProvider } from "@/lib/hooks/useProperty";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { PropertyProvider } from "@/components/PropertyContext";
 import "./globals.css";
 import type { Metadata } from "next";
 
@@ -9,17 +11,15 @@ export const metadata: Metadata = {
   description: "Stia Application",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
           <AuthProvider>
-            <PropertyProvider>{children}</PropertyProvider>
+            <TenantProvider>
+              <PropertyProvider>{children}</PropertyProvider>
+            </TenantProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

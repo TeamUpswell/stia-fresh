@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   Home as HomeIcon,
@@ -18,9 +18,11 @@ import {
   FileText as DocumentTextIcon,
   Sparkles,
   User as UserIcon,
+  Plus,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
+import { TenantSwitcher } from "@/components/TenantSwitcher";
 
 // Define interfaces for navigation items
 interface NavigationItem {
@@ -202,28 +204,9 @@ export default function SideNavigation({ user }: SideNavigationProps) {
         })}
       </div>
 
-      {/* Account Settings at bottom */}
-      <div className="px-3 py-4 border-t dark:border-gray-800 mt-auto">
-        <Link
-          href="/account"
-          className={`flex items-center px-4 py-2 text-sm rounded-md ${
-            isActive("/account")
-              ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-              : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
-          }`}
-        >
-          <UserIcon
-            className={`
-              mr-3 flex-shrink-0 h-5 w-5
-              ${
-                isActive("/account")
-                  ? "text-gray-500"
-                  : "text-gray-400 group-hover:text-gray-500"
-              }
-            `}
-          />
-          Account Settings
-        </Link>
+      {/* Tenant Switcher */}
+      <div className="px-3 py-4 border-t dark:border-gray-800">
+        <TenantSwitcher />
       </div>
     </div>
   );

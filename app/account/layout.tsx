@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import SideNavigation from "@/components/layout/SideNavigation";
 import { User, Key, Bell, Palette } from "lucide-react";
 import Link from "next/link";

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import DatabaseDiagnostic from "@/components/debug/DatabaseDiagnostic";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 
 export default function DiagnosticsPage() {
   const [config, setConfig] = useState({

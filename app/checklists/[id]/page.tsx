@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import {
   PlusIcon,

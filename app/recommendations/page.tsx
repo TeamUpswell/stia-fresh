@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import {

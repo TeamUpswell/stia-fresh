@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import {
   QueueListIcon,
   PlusIcon,
@@ -43,7 +43,7 @@ export default function InventoryList({
     .filter(
       (item) =>
         item.name.toLowerCase().includes(filter.toLowerCase()) ||
-        (item.category?.toLowerCase() || '').includes(filter.toLowerCase()) ||
+        (item.category?.toLowerCase() || "").includes(filter.toLowerCase()) ||
         (item.location &&
           item.location.toLowerCase().includes(filter.toLowerCase()))
     )

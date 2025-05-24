@@ -2,11 +2,18 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import { getMainProperty } from "@/lib/propertyService";
-import { CheckCircle, ArrowLeft, Home, Utensils, Bath, LucideIcon } from "lucide-react";
+import {
+  CheckCircle,
+  ArrowLeft,
+  Home,
+  Utensils,
+  Bath,
+  LucideIcon,
+} from "lucide-react";
 import RoomCard from "../components/RoomCard";
 
 // Define interfaces for our data structures

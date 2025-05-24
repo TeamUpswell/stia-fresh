@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+import { useTenant } from "@/lib/hooks/useTenant";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -21,36 +23,39 @@ interface Property {
 export default function PropertyPage() {
   const params = useParams();
   const propertyId = params?.id as string;
+  const { currentTenant } = useTenant(); // Add tenant context
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPropertyData() {
-      if (!propertyId) {
-        console.error("No property ID provided");
-        setError("Property ID is required");
+      if (!propertyId || !currentTenant) {
+        console.error("No property ID or tenant provided");
+        setError("Property ID and tenant are required");
         setLoading(false);
         return;
       }
 
       try {
-        console.log("Starting property data fetch for ID:", propertyId);
+        console.log(
+          "Starting property data fetch for ID:",
+          propertyId,
+          "Tenant:",
+          currentTenant.id
+        );
 
         const { data, error } = await supabase
           .from("properties")
           .select("*")
           .eq("id", propertyId)
+          .eq("tenant_id", currentTenant.id) // Add tenant filter
           .single();
 
         if (error) {
           console.error("Error loading property:", error);
-          if (error.code === "42P01") {
-            console.error("Property table doesn't exist!");
-            setError("Database configuration issue. Please contact support.");
-          } else if (error.code === "PGRST116") {
-            console.error("Row-level security prevented access");
-            setError("You don't have permission to view this property.");
+          if (error.code === "PGRST116") {
+            setError("Property not found or you don't have permission to view it.");
           } else {
             setError(error.message);
           }
@@ -70,8 +75,10 @@ export default function PropertyPage() {
       }
     }
 
-    loadPropertyData();
-  }, [propertyId]);
+    if (currentTenant) {
+      loadPropertyData();
+    }
+  }, [propertyId, currentTenant]); // Add currentTenant dependency
 
   return (
     <AuthenticatedLayout>

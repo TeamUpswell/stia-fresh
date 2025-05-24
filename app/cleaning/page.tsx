@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { getMainProperty } from "@/lib/propertyService";
 import { CheckCircle, AlertTriangle, ImagePlus, Settings, ClipboardList } from "lucide-react";

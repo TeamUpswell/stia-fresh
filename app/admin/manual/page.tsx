@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { useProperty } from "@/components/PropertyContext";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import PermissionGate from "@/components/PermissionGate";

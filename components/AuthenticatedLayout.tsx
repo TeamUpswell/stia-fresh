@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "./AuthProvider";
+import { useAuth } from "@/lib/auth";
 import SideNavigation from "@/components/layout/SideNavigation";
 import Script from "next/script";
 

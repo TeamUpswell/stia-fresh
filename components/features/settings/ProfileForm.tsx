@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { PhotoIcon } from "@heroicons/react/24/outline";
 import Image from "next/image";
 
@@ -17,7 +17,11 @@ interface ProfileFormProps {
   onUpdate: () => void;
 }
 
-export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormProps) {
+export default function ProfileForm({
+  profile,
+  loading,
+  onUpdate,
+}: ProfileFormProps) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     full_name: profile.full_name || "",
@@ -25,70 +29,70 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?.id) return;
-    
+
     try {
       setSaving(true);
       setMessage({ type: "", text: "" });
-      
+
       // Check if profile already exists
       const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
         .single();
-      
+
       let error;
-      
+
       if (existingProfile) {
         // Update existing profile
         const { error: updateError } = await supabase
-          .from('profiles')
+          .from("profiles")
           .update({
             full_name: formData.full_name,
             phone_number: formData.phone_number,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', user.id);
-          
+          .eq("id", user.id);
+
         error = updateError;
       } else {
         // Create new profile
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert([{
+        const { error: insertError } = await supabase.from("profiles").insert([
+          {
             id: user.id,
             full_name: formData.full_name,
             phone_number: formData.phone_number,
             email: user.email,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          }]);
-          
+          },
+        ]);
+
         error = insertError;
       }
-      
+
       if (error) throw error;
-      
-      setMessage({ 
-        type: "success", 
-        text: "Profile updated successfully!" 
+
+      setMessage({
+        type: "success",
+        text: "Profile updated successfully!",
       });
-      
+
       onUpdate();
     } catch (error: any) {
       console.error("Error updating profile:", error);
-      setMessage({ 
-        type: "error", 
-        text: error.message || "Failed to update profile. Please try again." 
+      setMessage({
+        type: "error",
+        text: error.message || "Failed to update profile. Please try again.",
       });
     } finally {
       setSaving(false);
@@ -103,13 +107,16 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
       </div>
     );
   }
-  
+
   return (
     <form onSubmit={handleSubmit} className="p-6">
       <div className="space-y-6">
         {/* Email (non-editable) */}
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label
+            htmlFor="email"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
             Email
           </label>
           <input
@@ -123,10 +130,13 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
             Your email address is managed through your authentication provider.
           </p>
         </div>
-        
+
         {/* Full Name */}
         <div>
-          <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label
+            htmlFor="full_name"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
             Full Name
           </label>
           <input
@@ -139,10 +149,13 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        
+
         {/* Phone Number */}
         <div>
-          <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
+          <label
+            htmlFor="phone_number"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
             Phone Number
           </label>
           <input
@@ -155,7 +168,7 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        
+
         {/* Avatar Upload (Future Enhancement) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -184,21 +197,23 @@ export default function ProfileForm({ profile, loading, onUpdate }: ProfileFormP
             >
               Change
             </button>
-            <p className="ml-4 text-xs text-gray-500">
-              Coming soon
-            </p>
+            <p className="ml-4 text-xs text-gray-500">Coming soon</p>
           </div>
         </div>
-        
+
         {/* Status Message */}
         {message.text && (
-          <div className={`rounded-md p-4 ${
-            message.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-          }`}>
+          <div
+            className={`rounded-md p-4 ${
+              message.type === "success"
+                ? "bg-green-50 text-green-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
             {message.text}
           </div>
         )}
-        
+
         {/* Submit Button */}
         <div className="flex justify-end">
           <button

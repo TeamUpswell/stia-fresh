@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 
 export default function NotificationsPage() {
   const { user } = useAuth();
-  
+
   return (
     <>
       <h1 className="text-3xl font-bold mb-8">Notification Preferences</h1>

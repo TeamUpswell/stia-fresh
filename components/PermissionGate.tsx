@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 
 // Update UserRole definition to be clearer about single vs multiple roles
 type UserRole = string | string[];

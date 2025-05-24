@@ -3,16 +3,30 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
 import { getMainProperty } from "@/lib/propertyService";
-import { ArrowLeft, Plus, Edit, Trash2, Home as HomeIcon, Check } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Edit,
+  Trash2,
+  Home as HomeIcon,
+  Check,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 
 // Default icon options for rooms
 const ICON_OPTIONS = [
-  "Home", "Utensils", "Bath", "Bed", "Sofa", "Car", "Warehouse", "Trees"
+  "Home",
+  "Utensils",
+  "Bath",
+  "Bed",
+  "Sofa",
+  "Car",
+  "Warehouse",
+  "Trees",
 ];
 
 export default function RoomManagement() {
@@ -26,7 +40,7 @@ export default function RoomManagement() {
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
-    icon: "Home"
+    icon: "Home",
   });
 
   useEffect(() => {
@@ -35,7 +49,7 @@ export default function RoomManagement() {
         setLoading(true);
         const propertyData = await getMainProperty();
         setProperty(propertyData);
-        
+
         if (propertyData?.id) {
           await fetchCustomRooms(propertyData.id);
         }
@@ -46,18 +60,18 @@ export default function RoomManagement() {
         setLoading(false);
       }
     }
-    
+
     loadData();
   }, []);
 
   const fetchCustomRooms = async (propertyId: string) => {
     try {
       const { data, error } = await supabase
-        .from('cleaning_room_types')
-        .select('*')
-        .eq('property_id', propertyId)
-        .order('name');
-        
+        .from("cleaning_room_types")
+        .select("*")
+        .eq("property_id", propertyId)
+        .order("name");
+
       if (error) throw error;
       setCustomRooms(data || []);
     } catch (error) {
@@ -66,69 +80,71 @@ export default function RoomManagement() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    
+
     // Auto-generate slug if name is being changed
-    if (name === 'name') {
-      const slug = value.toLowerCase().replace(/[^a-z0-9]/g, '_');
-      setFormData(prev => ({
+    if (name === "name") {
+      const slug = value.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      setFormData((prev) => ({
         ...prev,
         name: value,
-        slug
+        slug,
       }));
     } else {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        [name]: value
+        [name]: value,
       }));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user || !property) {
-      toast.error('You must be logged in and have a property selected');
+      toast.error("You must be logged in and have a property selected");
       return;
     }
-    
+
     if (!formData.name || !formData.slug) {
-      toast.error('Name and identifier are required');
+      toast.error("Name and identifier are required");
       return;
     }
-    
+
     try {
       if (editingRoom) {
         // Update existing room
         const { error } = await supabase
-          .from('cleaning_room_types')
+          .from("cleaning_room_types")
           .update({
             name: formData.name,
             slug: formData.slug,
             icon: formData.icon,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('id', editingRoom.id);
-          
+          .eq("id", editingRoom.id);
+
         if (error) throw error;
-        toast.success('Room updated successfully');
+        toast.success("Room updated successfully");
       } else {
         // Create new room
-        const { error } = await supabase
-          .from('cleaning_room_types')
-          .insert([{
+        const { error } = await supabase.from("cleaning_room_types").insert([
+          {
             property_id: property.id,
             name: formData.name,
             slug: formData.slug,
             icon: formData.icon,
-            created_by: user.id
-          }]);
-          
+            created_by: user.id,
+          },
+        ]);
+
         if (error) throw error;
-        toast.success('Room added successfully');
+        toast.success("Room added successfully");
       }
-      
+
       // Reset form and refetch rooms
       setFormData({ name: "", slug: "", icon: "Home" });
       setShowAddForm(false);
@@ -136,7 +152,7 @@ export default function RoomManagement() {
       await fetchCustomRooms(property.id);
     } catch (error) {
       console.error("Error saving room:", error);
-      toast.error('Failed to save room');
+      toast.error("Failed to save room");
     }
   };
 
@@ -145,30 +161,34 @@ export default function RoomManagement() {
     setFormData({
       name: room.name,
       slug: room.slug,
-      icon: room.icon
+      icon: room.icon,
     });
     setShowAddForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleDelete = async (roomId: string) => {
-    if (!confirm('Are you sure you want to delete this room? All associated tasks will also be deleted.')) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this room? All associated tasks will also be deleted."
+      )
+    ) {
       return;
     }
-    
+
     try {
       const { error } = await supabase
-        .from('cleaning_room_types')
+        .from("cleaning_room_types")
         .delete()
-        .eq('id', roomId);
-        
+        .eq("id", roomId);
+
       if (error) throw error;
-      
-      toast.success('Room deleted successfully');
+
+      toast.success("Room deleted successfully");
       await fetchCustomRooms(property?.id);
     } catch (error) {
       console.error("Error deleting room:", error);
-      toast.error('Failed to delete room');
+      toast.error("Failed to delete room");
     }
   };
 
@@ -176,15 +196,18 @@ export default function RoomManagement() {
     <AuthenticatedLayout>
       <div className="container mx-auto py-8 px-4">
         <div className="mb-6">
-          <Link href="/cleaning" className="flex items-center text-blue-600 hover:text-blue-800">
+          <Link
+            href="/cleaning"
+            className="flex items-center text-blue-600 hover:text-blue-800"
+          >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Cleaning Dashboard
           </Link>
         </div>
-        
+
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-semibold">Room Management</h1>
-          
+
           {!showAddForm && (
             <button
               onClick={() => setShowAddForm(true)}
@@ -195,17 +218,20 @@ export default function RoomManagement() {
             </button>
           )}
         </div>
-        
+
         {/* Add/Edit Form */}
         {showAddForm && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
             <h2 className="text-lg font-medium mb-4">
-              {editingRoom ? 'Edit Room' : 'Add New Room'}
+              {editingRoom ? "Edit Room" : "Add New Room"}
             </h2>
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="name"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Room Name *
                 </label>
                 <input
@@ -218,9 +244,12 @@ export default function RoomManagement() {
                   placeholder="e.g., Game Room"
                 />
               </div>
-              
+
               <div>
-                <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="slug"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Room Identifier * (auto-generated)
                 </label>
                 <input
@@ -237,9 +266,12 @@ export default function RoomManagement() {
                   Only use lowercase letters, numbers and underscores
                 </p>
               </div>
-              
+
               <div>
-                <label htmlFor="icon" className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="icon"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Icon
                 </label>
                 <select
@@ -249,12 +281,14 @@ export default function RoomManagement() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {ICON_OPTIONS.map(icon => (
-                    <option key={icon} value={icon}>{icon}</option>
+                  {ICON_OPTIONS.map((icon) => (
+                    <option key={icon} value={icon}>
+                      {icon}
+                    </option>
                   ))}
                 </select>
               </div>
-              
+
               <div className="flex justify-end space-x-3">
                 <button
                   type="button"
@@ -271,13 +305,13 @@ export default function RoomManagement() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                 >
-                  {editingRoom ? 'Save Changes' : 'Add Room'}
+                  {editingRoom ? "Save Changes" : "Add Room"}
                 </button>
               </div>
             </form>
           </div>
         )}
-        
+
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div>
@@ -288,31 +322,45 @@ export default function RoomManagement() {
               <div className="p-4 bg-blue-50 border-b border-blue-100">
                 <h2 className="font-medium">Standard Rooms</h2>
               </div>
-              
+
               <ul className="divide-y divide-gray-100">
-                {["Kitchen", "Living Room", "Master Bedroom", "Guest Bedroom", "Master Bathroom", "Guest Bathroom", "Hallway", "Outdoor Area"].map((room, index) => (
-                  <li key={index} className="p-4 flex items-center justify-between">
+                {[
+                  "Kitchen",
+                  "Living Room",
+                  "Master Bedroom",
+                  "Guest Bedroom",
+                  "Master Bathroom",
+                  "Guest Bathroom",
+                  "Hallway",
+                  "Outdoor Area",
+                ].map((room, index) => (
+                  <li
+                    key={index}
+                    className="p-4 flex items-center justify-between"
+                  >
                     <div className="flex items-center">
                       <div className="p-2 bg-blue-100 rounded-full mr-3">
                         <HomeIcon className="h-4 w-4 text-blue-600" />
                       </div>
                       <span>{room}</span>
                     </div>
-                    <span className="text-xs bg-gray-100 py-1 px-2 rounded">Default</span>
+                    <span className="text-xs bg-gray-100 py-1 px-2 rounded">
+                      Default
+                    </span>
                   </li>
                 ))}
               </ul>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow-md overflow-hidden">
               <div className="p-4 bg-blue-50 border-b border-blue-100">
                 <h2 className="font-medium">Custom Rooms</h2>
               </div>
-              
+
               {customRooms.length === 0 ? (
                 <div className="p-6 text-center text-gray-500">
                   <p>No custom rooms have been added yet</p>
-                  <button 
+                  <button
                     onClick={() => setShowAddForm(true)}
                     className="mt-3 text-blue-600 hover:text-blue-800"
                   >
@@ -322,7 +370,10 @@ export default function RoomManagement() {
               ) : (
                 <ul className="divide-y divide-gray-100">
                   {customRooms.map((room) => (
-                    <li key={room.id} className="p-4 flex items-center justify-between">
+                    <li
+                      key={room.id}
+                      className="p-4 flex items-center justify-between"
+                    >
                       <div className="flex items-center">
                         <div className="p-2 bg-blue-100 rounded-full mr-3">
                           <HomeIcon className="h-4 w-4 text-blue-600" />

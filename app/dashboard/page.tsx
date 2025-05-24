@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
+import { useTenant } from "@/lib/hooks/useTenant";
+import { useProperty } from "@/lib/hooks/useProperty";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import "@/styles/dashboard.css"; // Add this import
 import {
@@ -81,6 +83,8 @@ interface CleaningStats {
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
+  const { currentTenant } = useTenant();
+  const { currentProperty } = useProperty(); // Use this instead of loading property
   const [stats, setStats] = useState<DashboardStats>({
     tasksCompleted: 0,
     tasksInProgress: 0,
@@ -88,7 +92,6 @@ export default function Dashboard() {
     totalProjects: 0,
   });
   const [recentItems, setRecentItems] = useState<Task[]>([]);
-  const [property, setProperty] = useState<Property | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [cleaningStats, setCleaningStats] = useState<CleaningStats | null>(
@@ -108,31 +111,6 @@ export default function Dashboard() {
       return false;
     }
   }
-
-  // Update the loadPropertyData function
-  async function loadPropertyData() {
-    try {
-      // Get full property data from your service
-      const propertyData = await getMainProperty();
-      console.log("Loaded property data:", propertyData);
-
-      // Validate the image URL if it exists
-      if (propertyData?.main_photo_url) {
-        const isValid = await validateImageUrl(propertyData.main_photo_url);
-        console.log(`Property image URL is ${isValid ? "valid" : "invalid"}`);
-
-        // Fix URL if needed (your existing code)
-      }
-
-      setProperty(propertyData);
-    } catch (error) {
-      console.error("Error loading property:", error);
-    }
-  }
-
-  useEffect(() => {
-    loadPropertyData();
-  }, []);
 
   useEffect(() => {
     // Fetch dashboard data
@@ -174,15 +152,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Debug the image URL if it exists
-    if (property?.main_photo_url) {
-      console.log("Image URL:", property.main_photo_url);
+    if (currentProperty?.main_photo_url) {
+      console.log("Image URL:", currentProperty.main_photo_url);
 
       // Test if the URL is accessible
-      fetch(property.main_photo_url, { method: "HEAD" })
+      fetch(currentProperty.main_photo_url, { method: "HEAD" })
         .then((res) => console.log("Image URL test:", res.status, res.ok))
         .catch((err) => console.error("Image URL error:", err));
     }
-  }, [property]);
+  }, [currentProperty]);
 
   useEffect(() => {
     async function cleanupImageUrls() {
@@ -283,7 +261,12 @@ export default function Dashboard() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentTenant) {
+      if (!currentTenant) {
+        toast.error("Please select a property portfolio first");
+      }
+      return;
+    }
 
     // Log for debugging
     console.log("File selected:", file.name, file.type, file.size);
@@ -357,15 +340,18 @@ export default function Dashboard() {
       }
 
       // Check if we have a property ID before updating
-      if (!property?.id) {
-        console.error("No property ID available");
-        // Create a new property if one doesn't exist
+      if (!currentProperty?.id) {
+        console.log("No property found, creating new one for tenant:", currentTenant.id);
+        
+        // Create a new property with tenant_id
         const { data: newProperty, error: createError } = await supabase
           .from("properties")
           .insert([
             {
               name: "My Property",
               main_photo_url: publicUrl,
+              tenant_id: currentTenant.id, // Add tenant_id
+              created_by: currentTenant.owner_user_id,
             },
           ])
           .select()
@@ -379,13 +365,13 @@ export default function Dashboard() {
         const { error: updateError } = await supabase
           .from("properties")
           .update({ main_photo_url: publicUrl })
-          .eq("id", property.id);
+          .eq("id", currentProperty.id);
 
         if (updateError) throw updateError;
 
         // Update local state
         setProperty({
-          ...property,
+          ...currentProperty,
           main_photo_url: publicUrl,
         });
         toast.success("Property image updated successfully!");
@@ -474,11 +460,11 @@ export default function Dashboard() {
         {/* Property Hero Header */}
         <div className="relative rounded-xl overflow-hidden h-64 mb-8 group">
           {/* Property Image */}
-          {property?.main_photo_url ? (
+          {currentProperty?.main_photo_url ? (
             <div className="relative w-full h-full">
               <ResponsiveImage
-                src={property.main_photo_url}
-                alt={property.name || "Property"}
+                src={currentProperty.main_photo_url}
+                alt={currentProperty.name || "Property"}
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 priority={true}
               />
@@ -545,16 +531,17 @@ export default function Dashboard() {
             <div className="flex items-center justify-between w-full">
               <div>
                 <h1 className="text-3xl font-bold text-white mb-1">
-                  {property?.name || "My Property"}
+                  {currentProperty?.name || "My Property"}
                 </h1>
 
                 {/* Address added here over the hero image */}
-                {property?.address && (
+                {currentProperty?.address && (
                   <p className="text-white/90 mb-2">
-                    {property.address}
-                    {property.city && property.state && (
+                    {currentProperty.address}
+                    {currentProperty.city && currentProperty.state && (
                       <span>
-                        , {property.city}, {property.state} {property.zip}
+                        , {currentProperty.city}, {currentProperty.state}{" "}
+                        {currentProperty.zip}
                       </span>
                     )}
                   </p>
@@ -797,29 +784,29 @@ export default function Dashboard() {
         </section>
 
         {/* Property Location Map - Moved to bottom of page */}
-        {property && (property.latitude || property.longitude) && (
+        {currentProperty && (currentProperty.latitude || currentProperty.longitude) && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">
                 Property Location
               </h2>
-              {property.address && (
+              {currentProperty.address && (
                 <span className="text-sm text-gray-500">
-                  {property.address}, {property.city}, {property.state}{" "}
-                  {property.zip}
+                  {currentProperty.address}, {currentProperty.city}, {currentProperty.state}{" "}
+                  {currentProperty.zip}
                 </span>
               )}
             </div>
 
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <PropertyMap
-                latitude={property.latitude}
-                longitude={property.longitude}
+                latitude={currentProperty.latitude}
+                longitude={currentProperty.longitude}
                 address={
-                  property.address
-                    ? `${property.address}${
-                        property.city ? `, ${property.city}` : ""
-                      }${property.state ? `, ${property.state}` : ""}`
+                  currentProperty.address
+                    ? `${currentProperty.address}${
+                        currentProperty.city ? `, ${currentProperty.city}` : ""
+                      }${currentProperty.state ? `, ${currentProperty.state}` : ""}`
                     : undefined
                 }
                 height="400px"

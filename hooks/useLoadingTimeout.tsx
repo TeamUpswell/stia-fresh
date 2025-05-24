@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import ManualSectionComponent from "@/components/features/manual/ManualSection";
-import type { ManualSection } from "@/types/manual";
 
 export function useLoadingTimeout(initialLoading = false, timeoutMs = 10000) {
   const [loading, setLoading] = useState(initialLoading);

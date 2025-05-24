@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { XMarkIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import Image from "next/image";
 
 // Define a constant for permission bypass in development
@@ -23,7 +23,12 @@ interface ItemFormProps {
   onSaved: () => void;
 }
 
-export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemFormProps) {
+export default function ItemForm({
+  item,
+  sectionId,
+  onClose,
+  onSaved,
+}: ItemFormProps) {
   const { user } = useAuth(); // Get user from auth context
   const [formData, setFormData] = useState({
     title: "",
@@ -75,28 +80,26 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
     if (!selectedFile) return;
 
     setMediaUploading(true);
-    const fileExt = selectedFile.name.split('.').pop();
+    const fileExt = selectedFile.name.split(".").pop();
     const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `manual/${fileName}`;
 
     try {
       const { error: uploadError } = await supabase.storage
-        .from('media')
+        .from("media")
         .upload(filePath, selectedFile);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('media')
-        .getPublicUrl(filePath);
+      const { data } = supabase.storage.from("media").getPublicUrl(filePath);
 
       if (data) {
         setMediaUrls([...mediaUrls, data.publicUrl]);
         setSelectedFile(null);
       }
     } catch (error) {
-      console.error('Error uploading file:', error);
-      alert('Failed to upload image. Please try again.');
+      console.error("Error uploading file:", error);
+      alert("Failed to upload image. Please try again.");
     } finally {
       setMediaUploading(false);
     }
@@ -118,19 +121,19 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
       let orderIndex = 0;
       if (!item) {
         const { data } = await supabase
-          .from('manual_items')
-          .select('order_index')
-          .eq('section_id', sectionId)
-          .order('order_index', { ascending: false })
+          .from("manual_items")
+          .select("order_index")
+          .eq("section_id", sectionId)
+          .order("order_index", { ascending: false })
           .limit(1);
 
-        orderIndex = (data && data.length > 0) ? data[0].order_index + 1 : 0;
+        orderIndex = data && data.length > 0 ? data[0].order_index + 1 : 0;
       }
 
       if (item) {
         // Update existing item
         await supabase
-          .from('manual_items')
+          .from("manual_items")
           .update({
             title: formData.title,
             content: formData.content,
@@ -138,25 +141,25 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
             important: formData.important,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', item.id);
+          .eq("id", item.id);
       } else {
         // Create new item
-        await supabase
-          .from('manual_items')
-          .insert([{
+        await supabase.from("manual_items").insert([
+          {
             section_id: sectionId,
             title: formData.title,
             content: formData.content,
             media_urls: mediaUrls,
             important: formData.important,
             order_index: orderIndex,
-          }]);
+          },
+        ]);
       }
 
       onSaved();
     } catch (error) {
-      console.error('Error saving item:', error);
-      alert('Failed to save item. Please try again.');
+      console.error("Error saving item:", error);
+      alert("Failed to save item. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -181,14 +184,19 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
 
         <form onSubmit={handleSubmit} className="p-4">
           <div className="mb-4">
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="title"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Title*
             </label>
             <input
               type="text"
               id="title"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               placeholder="e.g., WiFi Information"
               required
@@ -196,16 +204,22 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
           </div>
 
           <div className="mb-4">
-            <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="content"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Content*
             </label>
             <div className="text-xs text-gray-500 mb-2">
-              Supports markdown formatting: **bold**, *italic*, # headings, - lists
+              Supports markdown formatting: **bold**, *italic*, # headings, -
+              lists
             </div>
             <textarea
               id="content"
               value={formData.content}
-              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, content: e.target.value })
+              }
               className="w-full px-3 py-2 border border-gray-300 rounded-md font-mono"
               placeholder="Enter details here..."
               rows={8}
@@ -218,7 +232,9 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
               <input
                 type="checkbox"
                 checked={formData.important}
-                onChange={(e) => setFormData({ ...formData, important: e.target.checked })}
+                onChange={(e) =>
+                  setFormData({ ...formData, important: e.target.checked })
+                }
                 className="h-4 w-4 text-blue-600"
               />
               <span className="ml-2 text-sm font-medium text-gray-700">
@@ -237,10 +253,13 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
             {mediaUrls.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
                 {mediaUrls.map((url, idx) => (
-                  <div key={idx} className="relative rounded-md overflow-hidden border">
+                  <div
+                    key={idx}
+                    className="relative rounded-md overflow-hidden border"
+                  >
                     <div className="relative h-32 w-full">
-                      <Image 
-                        src={url} 
+                      <Image
+                        src={url}
                         alt={`Media ${idx + 1}`}
                         fill
                         sizes="(max-width: 768px) 50vw, 33vw"
@@ -262,7 +281,9 @@ export default function ItemForm({ item, sectionId, onClose, onSaved }: ItemForm
 
             {/* Upload new media */}
             <div className="flex items-center space-x-2">
-              <label htmlFor="media" className="sr-only">Upload image</label>
+              <label htmlFor="media" className="sr-only">
+                Upload image
+              </label>
               <input
                 type="file"
                 id="media"

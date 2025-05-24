@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import styles from "./calendar.module.css";
 import { PlusCircle } from "lucide-react";

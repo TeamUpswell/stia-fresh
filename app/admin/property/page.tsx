@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Tab } from "@headlessui/react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
+import { useTenant } from "@/lib/hooks/useTenant"; // Add this import
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import PermissionGate from "@/components/PermissionGate";
 import { toast } from "react-hot-toast";
@@ -57,6 +58,7 @@ interface PropertyFormData {
 
 export default function PropertySettings() {
   const { user } = useAuth();
+  const { currentTenant } = useTenant(); // Add this
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);

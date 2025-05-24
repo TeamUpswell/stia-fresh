@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import SideNavigation from "@/components/layout/SideNavigation";
 import { ArrowLeft, Save, Trash2 } from "lucide-react";
@@ -64,7 +64,8 @@ export default function EditContactPage({ params }: PageParams) {
         }
       } catch (error: unknown) {
         console.error("Error fetching contact:", error);
-        const errorMessage = error instanceof Error ? error.message : "Failed to load contact";
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to load contact";
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -75,7 +76,9 @@ export default function EditContactPage({ params }: PageParams) {
   }, [contactId]);
 
   // Update the handleChange function with proper typing
-  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -113,7 +116,8 @@ export default function EditContactPage({ params }: PageParams) {
       router.refresh();
     } catch (error: unknown) {
       console.error("Error updating contact:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -136,7 +140,8 @@ export default function EditContactPage({ params }: PageParams) {
       router.refresh();
     } catch (error: unknown) {
       console.error("Error deleting contact:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -389,7 +394,8 @@ export default function EditContactPage({ params }: PageParams) {
               Delete Contact
             </h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              Are you sure you want to delete {formData.name}? This action cannot be undone.
+              Are you sure you want to delete {formData.name}? This action
+              cannot be undone.
             </p>
             <div className="flex justify-end space-x-4">
               <button

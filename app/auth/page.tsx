@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 export default function AuthPage() {
@@ -17,11 +17,11 @@ export default function AuthPage() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-    
+
     try {
       // Call login function from AuthProvider
       const { error } = await login(email, password);
-      
+
       if (error) {
         setError(error.message);
       } else {

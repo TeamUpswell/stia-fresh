@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import ProtectedPageWrapper from "@/components/layout/ProtectedPageWrapper";
 import PermissionGate from "@/components/PermissionGate";
 import { supabase } from "@/lib/supabase";
@@ -79,7 +79,7 @@ export default function PermissionManagementPage() {
       ...prev,
       [role]: {
         ...(prev[role] || {}),
-        [feature]: !((prev[role] || {})[feature]),
+        [feature]: !(prev[role] || {})[feature],
       },
     }));
   };

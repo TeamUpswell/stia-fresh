@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { Key, Shield, LogOut } from "lucide-react";
 
@@ -59,12 +59,12 @@ export default function SecurityPage() {
     } catch (error: unknown) {
       console.error("Error changing password:", error);
       let errorMessage = "Error changing password";
-      
+
       // Type guard for error object with message property
-      if (error && typeof error === 'object' && 'message' in error) {
+      if (error && typeof error === "object" && "message" in error) {
         errorMessage = error.message as string;
       }
-      
+
       setPasswordMessage({
         text: errorMessage,
         type: "error",
@@ -167,10 +167,11 @@ export default function SecurityPage() {
           <Shield className="mr-2 h-5 w-5 text-gray-400" />
           <h2 className="text-xl font-semibold">Account Security</h2>
         </div>
-        
+
         {/* You can add two-factor authentication or other security features here */}
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Additional security features like two-factor authentication coming soon.
+          Additional security features like two-factor authentication coming
+          soon.
         </p>
       </div>
 
@@ -180,18 +181,19 @@ export default function SecurityPage() {
           <LogOut className="mr-2 h-5 w-5 text-gray-400" />
           <h2 className="text-xl font-semibold">Account Sessions</h2>
         </div>
-        
+
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Sign out from all devices if you suspect unauthorized access to your account.
+          Sign out from all devices if you suspect unauthorized access to your
+          account.
         </p>
-        
+
         <button
           type="button"
           className="px-4 py-2 border border-red-500 text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
           onClick={async () => {
             try {
-              await supabase.auth.signOut({ scope: 'global' });
-              window.location.href = '/login';
+              await supabase.auth.signOut({ scope: "global" });
+              window.location.href = "/login";
             } catch (error) {
               console.error("Error signing out:", error);
             }

@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 
 export default function ProtectedPageWrapper({
   children,
@@ -16,9 +16,9 @@ export default function ProtectedPageWrapper({
 
   useEffect(() => {
     if (!user) {
-      router.push('/login');
+      router.push("/login");
     } else if (requiredRole && !hasPermission(requiredRole)) {
-      router.push('/unauthorized');
+      router.push("/unauthorized");
     }
   }, [user, hasPermission, requiredRole, router]);
 

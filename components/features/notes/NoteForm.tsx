@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/components/AuthProvider";
+import { useAuth } from "@/lib/auth";
 import { DocumentTextIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 export interface Note {
