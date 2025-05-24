@@ -2,283 +2,312 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/AuthProvider";
-import { useTenant } from "@/lib/hooks/useTenant";
 import { useProperty } from "@/lib/hooks/useProperty";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
-import "@/styles/dashboard.css"; // Add this import
+import "@/styles/dashboard.css";
 import {
   Calendar,
-  Clock,
-  BarChart3,
-  CheckCircle,
-  PlusCircle,
-  User,
-  Settings,
-  LogOut,
-  Bell,
-  ChevronRight,
-  Inbox,
-  Users,
-  Pencil,
-  Building2,
-  Sparkles,
   AlertTriangle,
+  CheckCircle,
+  Package,
+  Cloud,
+  Wrench,
+  Users,
+  ChevronRight,
+  Thermometer,
+  Wind,
+  Eye,
+  Clock,
+  Home,
+  Wifi,
+  Zap,
+  Droplets,
+  Shield,
+  MapPin,
+  Phone,
+  Pencil,
+  Plus,
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { toast } from "react-hot-toast";
-import { getMainProperty } from "@/lib/propertyService";
-import { convertToWebP, supportsWebP } from "@/lib/imageUtils";
 import ResponsiveImage from "@/components/ResponsiveImage";
-import PropertyMap from "@/components/PropertyMap";
-import Script from "next/script";
+import { convertToWebP, supportsWebP } from "@/lib/imageUtils";
 
-// Define types for your data
-interface Property {
-  id: string;
-  name: string;
-  main_photo_url?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  country?: string;
-  description?: string;
-  property_type?: string;
-  bedrooms?: number;
-  bathrooms?: number;
-  max_occupancy?: number;
-  wifi_name?: string;
-  wifi_password?: string;
-  amenities?: string[];
-  check_in_instructions?: string;
-  check_out_instructions?: string;
-  latitude?: number;
-  longitude?: number;
-  updated_at?: string;
-}
-
-interface Task {
+// Define interfaces for our new dashboard data
+interface Issue {
   id: string;
   title: string;
-  description?: string;
-  status: "pending" | "in_progress" | "completed";
+  severity: "low" | "medium" | "high" | "critical";
+  category: "maintenance" | "cleaning" | "inventory" | "safety";
+  description: string;
   created_at: string;
-  user_id: string;
+  status: "open" | "in_progress" | "resolved";
 }
 
-interface DashboardStats {
-  tasksCompleted: number;
-  tasksInProgress: number;
-  upcomingEvents: number;
-  totalProjects: number;
+interface UpcomingVisit {
+  id: string;
+  guest_name: string;
+  check_in: string;
+  check_out: string;
+  guests_count: number;
+  status: "confirmed" | "pending" | "cancelled";
+  contact_info?: string;
 }
 
-interface CleaningStats {
-  completed: number;
-  total: number;
+interface InventoryItem {
+  id: string;
+  name: string;
+  current_stock: number;
+  min_stock: number;
+  category: "essentials" | "cleaning" | "amenities" | "maintenance";
+  last_restocked: string;
+  status: "good" | "low" | "critical";
+}
+
+interface WeatherData {
+  current: {
+    temp: number;
+    condition: string;
+    humidity: number;
+    wind_speed: number;
+    icon: string;
+  };
+  forecast: Array<{
+    date: string;
+    high: number;
+    low: number;
+    condition: string;
+    icon: string;
+  }>;
 }
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const { currentTenant } = useTenant();
-  const { currentProperty } = useProperty(); // Use this instead of loading property
-  const [stats, setStats] = useState<DashboardStats>({
-    tasksCompleted: 0,
-    tasksInProgress: 0,
-    upcomingEvents: 0,
-    totalProjects: 0,
-  });
-  const [recentItems, setRecentItems] = useState<Task[]>([]);
+  const { currentProperty } = useProperty();
+
+  // State for dashboard content
+  const [upcomingVisits, setUpcomingVisits] = useState<UpcomingVisit[]>([]);
+  const [inventoryAlerts, setInventoryAlerts] = useState<InventoryItem[]>([]);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [maintenanceAlerts, setMaintenanceAlerts] = useState<Issue[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [cleaningStats, setCleaningStats] = useState<CleaningStats | null>(
-    null
-  );
-  const [issuesCount, setIssuesCount] = useState<number>(0);
 
-  // Add this function to your component
-  async function validateImageUrl(url: string) {
-    if (!url) return false;
-
-    try {
-      const response = await fetch(url, { method: "HEAD" });
-      return response.ok;
-    } catch (error) {
-      console.error("Image validation error:", error);
-      return false;
-    }
-  }
-
+  // Fetch upcoming visits/reservations
   useEffect(() => {
-    // Fetch dashboard data
-    async function fetchDashboardData() {
-      if (!user) return;
+    async function fetchUpcomingVisits() {
+      if (!currentProperty) return;
 
       try {
-        // Example query - replace with your actual data model
-        const { data: tasksData, error: tasksError } = await supabase
-          .from("tasks")
+        const today = new Date().toISOString().split("T")[0];
+        const { data: visits, error } = await supabase
+          .from("reservations")
           .select("*")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
+          .eq("property_id", currentProperty.id)
+          .gte("check_in", today)
+          .order("check_in", { ascending: true })
           .limit(5);
 
-        if (!tasksError && tasksData) {
-          // Calculate stats
-          const completed = tasksData.filter(
-            (t) => t.status === "completed"
-          ).length;
+        if (error) throw error;
 
-          setStats({
-            tasksCompleted: completed,
-            tasksInProgress: tasksData.filter((t) => t.status === "in_progress")
-              .length,
-            upcomingEvents: 3, // Replace with actual count
-            totalProjects: 2, // Replace with actual count
-          });
-
-          setRecentItems(tasksData as Task[]);
-        }
+        setUpcomingVisits(
+          visits?.map((v) => ({
+            id: v.id,
+            guest_name: v.guest_name || v.title,
+            check_in: v.check_in || v.start_date,
+            check_out: v.check_out || v.end_date,
+            guests_count: v.guests || 1,
+            status: v.status || "pending",
+            contact_info: v.contact_email || v.contact_phone,
+          })) || []
+        );
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+        console.error("Error fetching upcoming visits:", error);
       }
     }
 
-    fetchDashboardData();
-  }, [user]);
-
-  useEffect(() => {
-    // Debug the image URL if it exists
-    if (currentProperty?.main_photo_url) {
-      console.log("Image URL:", currentProperty.main_photo_url);
-
-      // Test if the URL is accessible
-      fetch(currentProperty.main_photo_url, { method: "HEAD" })
-        .then((res) => console.log("Image URL test:", res.status, res.ok))
-        .catch((err) => console.error("Image URL error:", err));
-    }
+    fetchUpcomingVisits();
   }, [currentProperty]);
 
+  // Fetch inventory alerts
   useEffect(() => {
-    async function cleanupImageUrls() {
-      // Optional cleanup for existing images
-      const { data: properties } = await supabase
-        .from("properties")
-        .select("id, main_photo_url")
-        .not("main_photo_url", "is", null);
+    async function fetchInventoryAlerts() {
+      if (!currentProperty) return;
 
-      for (const property of properties || []) {
-        if (property.main_photo_url?.includes("/properties/properties/")) {
-          const fixedUrl = property.main_photo_url.replace(
-            "/properties/properties/",
-            "/properties/"
-          );
-          await supabase
-            .from("properties")
-            .update({ main_photo_url: fixedUrl })
-            .eq("id", property.id);
-        }
-      }
-    }
-
-    cleanupImageUrls();
-  }, []);
-
-  useEffect(() => {
-    async function setupStorageBucket() {
       try {
-        // First check if bucket access works at all
-        const { data: buckets, error: listError } =
-          await supabase.storage.listBuckets();
+        const { data: inventory, error } = await supabase
+          .from("inventory")
+          .select("*")
+          .eq("property_id", currentProperty.id)
+          .or("current_stock.lte.min_stock")
+          .order("category");
 
-        if (listError) {
-          console.log("Not an admin user - skipping bucket creation");
-          return; // Exit early as we likely don't have admin access
-        }
+        if (error) throw error;
 
-        // If we can list buckets, check if properties bucket exists
-        const propertiesBucket = buckets?.find(
-          (bucket) => bucket.name === "properties"
-        );
+        const alerts =
+          inventory
+            ?.map((item) => ({
+              ...item,
+              status:
+                item.current_stock <= 0
+                  ? ("critical" as const)
+                  : item.current_stock <= item.min_stock
+                  ? ("low" as const)
+                  : ("good" as const),
+            }))
+            .filter((item) => item.status !== "good") || [];
 
-        if (!propertiesBucket) {
-          console.log(
-            "Properties bucket doesn't exist, but may be created by admin"
-          );
-          // Try uploading a test file - the bucket might exist even if we can't see it
-          await testBucketAccess();
-        } else {
-          console.log("Properties bucket exists");
-          await testBucketAccess();
-        }
-      } catch (err) {
-        console.log("Storage setup skipped - requires admin rights");
+        setInventoryAlerts(alerts);
+      } catch (error) {
+        console.error("Error fetching inventory:", error);
+        // Create some example data if table doesn't exist
+        setInventoryAlerts([
+          {
+            id: "1",
+            name: "Toilet Paper",
+            current_stock: 2,
+            min_stock: 6,
+            category: "essentials",
+            last_restocked: "2024-01-15",
+            status: "low",
+          },
+          {
+            id: "2",
+            name: "Coffee",
+            current_stock: 0,
+            min_stock: 2,
+            category: "amenities",
+            last_restocked: "2024-01-10",
+            status: "critical",
+          },
+        ]);
       }
     }
 
-    // Separate function to test writing to the bucket
-    async function testBucketAccess() {
-      try {
-        const testFile = new File(["test"], "test.txt", { type: "text/plain" });
-        const { error: uploadError } = await supabase.storage
-          .from("properties")
-          .upload("test-permission-check.txt", testFile, { upsert: true });
+    fetchInventoryAlerts();
+  }, [currentProperty]);
 
-        if (uploadError) {
-          console.log(
-            "Note: Cannot write to properties bucket - user has read-only access"
-          );
-        } else {
-          console.log("Successfully wrote to properties bucket");
-          // Clean up the test file
-          await supabase.storage
-            .from("properties")
-            .remove(["test-permission-check.txt"]);
-        }
-      } catch (err) {
-        console.log("Cannot access properties bucket for writing");
-      }
-    }
-
-    setupStorageBucket();
-  }, []);
-
-  // Refresh property data when the user returns to this page
+  // Fetch maintenance alerts
   useEffect(() => {
-    // This will refetch property data when the user navigates back to dashboard
-    const handleFocus = () => {
-      if (document.visibilityState === "visible") {
-        loadPropertyData();
+    async function fetchMaintenanceAlerts() {
+      if (!currentProperty) return;
+
+      try {
+        const { data: issues, error } = await supabase
+          .from("property_issues")
+          .select("*")
+          .eq("property_id", currentProperty.id)
+          .eq("status", "open")
+          .eq("category", "maintenance")
+          .order("severity", { ascending: false });
+
+        if (error) throw error;
+        setMaintenanceAlerts(issues || []);
+      } catch (error) {
+        console.error("Error fetching maintenance alerts:", error);
       }
-    };
+    }
 
-    document.addEventListener("visibilitychange", handleFocus);
-    return () => document.removeEventListener("visibilitychange", handleFocus);
-  }, []);
+    fetchMaintenanceAlerts();
+  }, [currentProperty]);
 
+  // Fetch weather data
+  useEffect(() => {
+    async function fetchWeather() {
+      if (!currentProperty?.latitude || !currentProperty?.longitude) {
+        // Show fallback weather for now
+        setWeather({
+          current: {
+            temp: 72,
+            condition: "Partly cloudy",
+            humidity: 65,
+            wind_speed: 8,
+            icon: "02d",
+          },
+          forecast: [
+            {
+              date: "2024-05-25",
+              high: 75,
+              low: 60,
+              condition: "Sunny",
+              icon: "01d",
+            },
+            {
+              date: "2024-05-26",
+              high: 73,
+              low: 58,
+              condition: "Cloudy",
+              icon: "03d",
+            },
+            {
+              date: "2024-05-27",
+              high: 68,
+              low: 55,
+              condition: "Rain",
+              icon: "10d",
+            },
+          ],
+        });
+        return;
+      }
+
+      try {
+        const API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
+
+        if (!API_KEY) {
+          console.log("Weather API key not configured");
+          return;
+        }
+
+        const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${currentProperty.latitude}&lon=${currentProperty.longitude}&appid=${API_KEY}&units=imperial`;
+        const response = await fetch(url);
+
+        if (response.ok) {
+          const data = await response.json();
+
+          setWeather({
+            current: {
+              temp: Math.round(data.list[0].main.temp),
+              condition: data.list[0].weather[0].description,
+              humidity: data.list[0].main.humidity,
+              wind_speed: Math.round(data.list[0].wind.speed),
+              icon: data.list[0].weather[0].icon,
+            },
+            forecast: data.list.slice(1, 6).map((item: any) => ({
+              date: item.dt_txt.split(" ")[0],
+              high: Math.round(item.main.temp_max),
+              low: Math.round(item.main.temp_min),
+              condition: item.weather[0].description,
+              icon: item.weather[0].icon,
+            })),
+          });
+        } else {
+          console.error("Weather API error:", response.status);
+        }
+      } catch (error) {
+        console.error("Error fetching weather:", error);
+      }
+    }
+
+    fetchWeather();
+  }, [currentProperty]);
+
+  // Image upload handler
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !currentTenant) {
-      if (!currentTenant) {
-        toast.error("Please select a property portfolio first");
-      }
+    if (!file || !currentProperty) {
+      toast.error("Please select a property first");
       return;
     }
 
-    // Log for debugging
-    console.log("File selected:", file.name, file.type, file.size);
-
-    // Validate file type and size
     if (!file.type.match(/image\/(jpeg|jpg|png|webp|gif)/i)) {
-      toast.error("Please select a valid image file (JPEG, PNG, GIF)");
+      toast.error("Please select a valid image file");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      // 5MB limit
       toast.error("Image must be less than 5MB");
       return;
     }
@@ -290,7 +319,6 @@ export default function Dashboard() {
       let fileToUpload = file;
       let fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
 
-      // Check if WebP is supported and convert
       const webpSupported = await supportsWebP();
       if (webpSupported) {
         const optimizedBlob = await convertToWebP(file, 1920, 0.85);
@@ -300,146 +328,40 @@ export default function Dashboard() {
         fileExt = "webp";
       }
 
-      // Create unique filename with UUID for reliability
       const fileName = `property-${uuidv4()}.${fileExt}`;
       const filePath = `${fileName}`;
-
-      console.log("Uploading to path:", filePath, "as", fileToUpload.type);
 
       const { error: uploadError } = await supabase.storage
         .from("properties")
         .upload(filePath, fileToUpload, {
-          cacheControl: "31536000", // 1 year for static property images
+          cacheControl: "31536000",
           upsert: true,
-        } as any); // Temporary type casting to fix the TypeScript error
+        });
 
-      // Monitor progress separately using XHR if needed
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => Math.min(prev + 10, 90)); // Simulate progress
-      }, 200);
-
-      // Clear the interval after upload completes or fails
-      clearInterval(progressInterval);
       setUploadProgress(100);
 
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: publicUrlData } = supabase.storage
         .from("properties")
         .getPublicUrl(filePath);
 
-      const publicUrl = publicUrlData.publicUrl;
-      console.log("Public URL:", publicUrl);
+      const { error: updateError } = await supabase
+        .from("properties")
+        .update({ main_photo_url: publicUrlData.publicUrl })
+        .eq("id", currentProperty.id);
 
-      if (!publicUrl) {
-        throw new Error("Failed to get public URL");
-      }
+      if (updateError) throw updateError;
 
-      // Check if we have a property ID before updating
-      if (!currentProperty?.id) {
-        console.log("No property found, creating new one for tenant:", currentTenant.id);
-        
-        // Create a new property with tenant_id
-        const { data: newProperty, error: createError } = await supabase
-          .from("properties")
-          .insert([
-            {
-              name: "My Property",
-              main_photo_url: publicUrl,
-              tenant_id: currentTenant.id, // Add tenant_id
-              created_by: currentTenant.owner_user_id,
-            },
-          ])
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        setProperty(newProperty as Property);
-        toast.success("Property created with new image!");
-      } else {
-        // Update existing property record
-        const { error: updateError } = await supabase
-          .from("properties")
-          .update({ main_photo_url: publicUrl })
-          .eq("id", currentProperty.id);
-
-        if (updateError) throw updateError;
-
-        // Update local state
-        setProperty({
-          ...currentProperty,
-          main_photo_url: publicUrl,
-        });
-        toast.success("Property image updated successfully!");
-      }
+      toast.success("Property image updated successfully!");
+      window.location.reload();
     } catch (error) {
       console.error("Error uploading image:", error);
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to upload image. Please try again.";
-      toast.error(errorMessage);
+      toast.error("Failed to upload image. Please try again.");
     } finally {
       setIsUploading(false);
     }
   };
-
-  // Update your test image function to use WebP:
-  async function uploadTestImage() {
-    try {
-      // Create a simple canvas image
-      const canvas = document.createElement("canvas");
-      canvas.width = 300;
-      canvas.height = 150;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.fillStyle = "#3498db";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "20px Arial";
-        ctx.fillText("Test Image", 10, 50);
-      }
-
-      // Convert to WebP if supported, otherwise PNG
-      const format = (await supportsWebP()) ? "webp" : "png";
-      const blob = await new Promise<Blob>((resolve) =>
-        canvas.toBlob((blob) => resolve(blob!), `image/${format}`, 0.9)
-      );
-
-      // Upload to Supabase with appropriate extension
-      const fileName = `test-image-${Date.now()}.${format}`;
-      console.log("Uploading test image:", fileName);
-
-      const { data, error } = await supabase.storage
-        .from("properties")
-        .upload(fileName, blob, {
-          cacheControl: "31536000", // 1 year for test images as well
-          upsert: true,
-        });
-
-      if (error) throw error;
-
-      // Get URL and log it
-      const { data: urlData } = await supabase.storage
-        .from("properties")
-        .getPublicUrl(fileName);
-
-      console.log("Test image uploaded successfully:", urlData.publicUrl);
-
-      // Try to access it
-      const response = await fetch(urlData.publicUrl, { method: "HEAD" });
-      console.log("Test image accessibility:", response.status, response.ok);
-
-      return urlData.publicUrl;
-    } catch (err) {
-      console.error("Test upload failed:", err);
-      return null;
-    }
-  }
 
   if (loading) {
     return (
@@ -449,17 +371,36 @@ export default function Dashboard() {
     );
   }
 
+  if (!currentProperty) {
+    return (
+      <AuthenticatedLayout>
+        <div className="container mx-auto p-8 text-center">
+          <div className="max-w-md mx-auto">
+            <Home className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              No Property Selected
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Please select a property from the dropdown to view your dashboard.
+            </p>
+            <Link
+              href="/properties/create"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Your First Property
+            </Link>
+          </div>
+        </div>
+      </AuthenticatedLayout>
+    );
+  }
+
   return (
     <AuthenticatedLayout>
-      <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-        strategy="lazyOnload"
-      />
-      {/* Main Content */}
       <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-        {/* Property Hero Header */}
+        {/* Property Hero Header with Weather Overlay */}
         <div className="relative rounded-xl overflow-hidden h-64 mb-8 group">
-          {/* Property Image */}
           {currentProperty?.main_photo_url ? (
             <div className="relative w-full h-full">
               <ResponsiveImage
@@ -472,6 +413,89 @@ export default function Dashboard() {
           ) : (
             <div className="w-full h-full bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
               <p className="text-white text-lg">Add a property image</p>
+            </div>
+          )}
+
+          {/* Weather Widget Overlay - Lower Right Corner */}
+          {weather && (
+            <div className="absolute bottom-4 right-4 z-10">
+              <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-white/30 min-w-80">
+                <div className="flex items-center justify-between">
+                  {/* Current Weather */}
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
+                      {weather.current.icon ? (
+                        <img
+                          src={`https://openweathermap.org/img/wn/${weather.current.icon}.png`}
+                          alt={weather.current.condition}
+                          className="w-8 h-8"
+                        />
+                      ) : (
+                        <Cloud className="h-6 w-6 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {weather.current.temp}°F
+                      </div>
+                      <p
+                        className="text-sm capitalize font-black"
+                        style={{ color: "#000000" }}
+                      >
+                        {weather.current.condition}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Mini Forecast */}
+                  <div className="flex items-center space-x-2">
+                    {weather.forecast.slice(0, 3).map((day, index) => {
+                      const date = new Date(day.date);
+                      const dayName = date
+                        .toLocaleDateString("en-US", { weekday: "short" })
+                        .slice(0, 2);
+
+                      return (
+                        <div key={index} className="text-center">
+                          <div className="text-xs text-gray-900 font-bold">
+                            {dayName}
+                          </div>
+                          <div className="w-6 h-6 mx-auto my-1">
+                            {day.icon ? (
+                              <img
+                                src={`https://openweathermap.org/img/wn/${day.icon}.png`}
+                                alt={day.condition}
+                                className="w-6 h-6"
+                              />
+                            ) : (
+                              <Cloud className="h-4 w-4 text-gray-800" />
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-900 font-bold">
+                            {day.high}°
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Weather Stats */}
+                  <div className="text-right space-y-1">
+                    <div className="flex items-center text-xs text-gray-900">
+                      <Droplets className="h-3 w-3 mr-1 text-blue-600" />
+                      <span className="font-bold">
+                        {weather.current.humidity}%
+                      </span>
+                    </div>
+                    <div className="flex items-center text-xs text-gray-900">
+                      <Wind className="h-3 w-3 mr-1 text-gray-800" />
+                      <span className="font-bold">
+                        {weather.current.wind_speed} mph
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -491,7 +515,6 @@ export default function Dashboard() {
               className={`${
                 isUploading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
               } p-2 rounded-full shadow-lg transition-colors`}
-              aria-label="Change property image"
             >
               {isUploading ? (
                 <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -500,20 +523,16 @@ export default function Dashboard() {
               )}
             </button>
 
-            <label htmlFor="property-image-upload" className="sr-only">
-              Upload property image
-            </label>
             <input
               id="property-image-upload"
               type="file"
               className="hidden"
               accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={handleImageUpload}
-              aria-label="Upload property image"
             />
           </div>
 
-          {/* Upload Progress Indicator */}
+          {/* Upload Progress */}
           {isUploading && (
             <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center">
               <div className="w-64 bg-gray-200 rounded-full h-2.5 mb-4">
@@ -526,295 +545,288 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Overlay with Property Name and Address */}
+          {/* Property Info Overlay - Bottom */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-6">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <h1 className="text-3xl font-bold text-white mb-1">
-                  {currentProperty?.name || "My Property"}
-                </h1>
-
-                {/* Address added here over the hero image */}
-                {currentProperty?.address && (
-                  <p className="text-white/90 mb-2">
-                    {currentProperty.address}
-                    {currentProperty.city && currentProperty.state && (
-                      <span>
-                        , {currentProperty.city}, {currentProperty.state}{" "}
-                        {currentProperty.zip}
-                      </span>
-                    )}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <p className="text-white/80 mt-1">
-              Welcome
-              {user?.user_metadata?.full_name
-                ? `, ${user.user_metadata.full_name}`
-                : ""}
-              ! Here&apos;s what&apos;s happening today.
-            </p>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="rounded-full p-3 bg-blue-100">
-                <CheckCircle className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-500">
-                  Tasks Completed
-                </h3>
-                <span className="text-2xl font-semibold">
-                  {stats.tasksCompleted}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="rounded-full p-3 bg-green-100">
-                <Clock className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-500">
-                  In Progress
-                </h3>
-                <span className="text-2xl font-semibold">
-                  {stats.tasksInProgress}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="rounded-full p-3 bg-purple-100">
-                <Calendar className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-500">
-                  Upcoming Events
-                </h3>
-                <span className="text-2xl font-semibold">
-                  {stats.upcomingEvents}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="rounded-full p-3 bg-yellow-100">
-                <Inbox className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-500">
-                  Total Projects
-                </h3>
-                <span className="text-2xl font-semibold">
-                  {stats.totalProjects}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 text-gray-900">
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link
-              href="/tasks/new"
-              className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow"
-            >
-              <PlusCircle className="h-6 w-6 text-blue-600 mb-2" />
-              <h3 className="font-medium">New Task</h3>
-              <p className="text-sm text-gray-500">Create a task or to-do</p>
-            </Link>
-            <Link
-              href="/calendar/event/new"
-              className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow"
-            >
-              <Calendar className="h-6 w-6 text-blue-600 mb-2" />
-              <h3 className="font-medium">Schedule Event</h3>
-              <p className="text-sm text-gray-500">Add to your calendar</p>
-            </Link>
-            <Link
-              href="/inventory/new"
-              className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow"
-            >
-              <Inbox className="h-6 w-6 text-blue-600 mb-2" />
-              <h3 className="font-medium">Add to Inventory</h3>
-              <p className="text-sm text-gray-500">Track new items</p>
-            </Link>
-            <Link
-              href="/settings/profile"
-              className="bg-white p-4 rounded-lg border hover:shadow-md transition-shadow"
-            >
-              <Settings className="h-6 w-6 text-blue-600 mb-2" />
-              <h3 className="font-medium">Account Settings</h3>
-              <p className="text-sm text-gray-500">Update your profile</p>
-            </Link>
-          </div>
-        </section>
-
-        {/* Cleaning Section */}
-        <section className="mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-md">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <Sparkles className="h-6 w-6 text-blue-500 mr-2" />
-                <h2 className="text-xl font-medium">Cleaning</h2>
-              </div>
-              <Link
-                href="/cleaning"
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                View All
-              </Link>
-            </div>
-
-            {cleaningStats ? (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-gray-600">Tasks Completed</span>
-                  <span className="font-medium">
-                    {cleaningStats.completed}/{cleaningStats.total}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4">
-                  <div
-                    className="bg-green-500 h-2.5 rounded-full"
-                    style={{
-                      width: `${
-                        cleaningStats.total
-                          ? (cleaningStats.completed / cleaningStats.total) *
-                            100
-                          : 0
-                      }%`,
-                    }}
-                  ></div>
-                </div>
-                {issuesCount > 0 && (
-                  <div className="mt-2 text-amber-600 text-sm flex items-center">
-                    <AlertTriangle className="h-4 w-4 mr-1" />
-                    {issuesCount} issue{issuesCount !== 1 ? "s" : ""} reported
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-gray-500">No cleaning tasks found</div>
-            )}
-          </div>
-        </section>
-
-        {/* Recent Activity */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
-              Recent Activity
-            </h2>
-            <Link
-              href="/tasks"
-              className="text-blue-600 text-sm hover:underline"
-            >
-              View all
-            </Link>
-          </div>
-
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            {recentItems.length > 0 ? (
-              <ul className="divide-y divide-gray-200">
-                {recentItems.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      href={`/tasks/${item.id}`}
-                      className="block hover:bg-gray-50"
-                    >
-                      <div className="px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900">
-                            {item.title || "Task title"}
-                          </p>
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full ${
-                              item.status === "completed"
-                                ? "bg-green-100 text-green-800"
-                                : item.status === "in_progress"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-yellow-100 text-yellow-800"
-                            }`}
-                          >
-                            {item.status || "pending"}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {item.description?.substring(0, 100) ||
-                            "No description available"}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-2">
-                          {new Date(item.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="p-6 text-center text-gray-500">
-                <p>No recent activity to show</p>
-                <Link
-                  href="/tasks/new"
-                  className="text-blue-600 hover:underline mt-2 inline-block"
-                >
-                  Create your first task
-                </Link>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Property Location Map - Moved to bottom of page */}
-        {currentProperty && (currentProperty.latitude || currentProperty.longitude) && (
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Property Location
-              </h2>
-              {currentProperty.address && (
-                <span className="text-sm text-gray-500">
-                  {currentProperty.address}, {currentProperty.city}, {currentProperty.state}{" "}
-                  {currentProperty.zip}
-                </span>
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-1">
+                {currentProperty?.name || "My Property"}
+              </h1>
+              {currentProperty?.address && (
+                <p className="text-white/90 mb-2 flex items-center">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  {currentProperty.address}
+                  {currentProperty.city && currentProperty.state && (
+                    <span>
+                      , {currentProperty.city}, {currentProperty.state}{" "}
+                      {currentProperty.zip}
+                    </span>
+                  )}
+                </p>
               )}
             </div>
+          </div>
+        </div>
 
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <PropertyMap
-                latitude={currentProperty.latitude}
-                longitude={currentProperty.longitude}
-                address={
-                  currentProperty.address
-                    ? `${currentProperty.address}${
-                        currentProperty.city ? `, ${currentProperty.city}` : ""
-                      }${currentProperty.state ? `, ${currentProperty.state}` : ""}`
-                    : undefined
-                }
-                height="400px"
-                className="w-full rounded-lg overflow-hidden"
-              />
-            </div>
-          </section>
-        )}
+        {/* Two Column Dashboard Grid (Weather removed from here) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Column 1 - Upcoming Visits */}
+          <div className="space-y-6">
+            <section className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                  <Calendar className="h-6 w-6 text-blue-600 mr-2" />
+                  Upcoming Visits
+                </h2>
+                <Link
+                  href="/calendar"
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  View Calendar
+                </Link>
+              </div>
+
+              {upcomingVisits.length > 0 ? (
+                <div className="space-y-3">
+                  {upcomingVisits.map((visit) => (
+                    <div
+                      key={visit.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                    >
+                      <div className="flex items-center">
+                        <Users className="h-8 w-8 text-blue-500 mr-3" />
+                        <div>
+                          <h3 className="font-medium text-gray-900">
+                            {visit.guest_name}
+                          </h3>
+                          <p className="text-sm text-gray-700">
+                            {new Date(visit.check_in).toLocaleDateString()} -{" "}
+                            {new Date(visit.check_out).toLocaleDateString()}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            {visit.guests_count} guest
+                            {visit.guests_count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            visit.status === "confirmed"
+                              ? "bg-green-100 text-green-800"
+                              : visit.status === "pending"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {visit.status}
+                        </span>
+                        {visit.contact_info && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            {visit.contact_info}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-700">No upcoming visits scheduled</p>
+                  <Link
+                    href="/reservations/new"
+                    className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block font-medium"
+                  >
+                    Add a reservation
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            {/* Quick Actions */}
+            <section className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900">
+                Quick Actions
+              </h2>
+              <div className="space-y-3">
+                <Link
+                  href="/issues/new"
+                  className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <AlertTriangle className="h-5 w-5 text-orange-500 mr-3" />
+                  <span className="font-medium text-gray-900">
+                    Report Issue
+                  </span>
+                  <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />
+                </Link>
+                <Link
+                  href="/reservations/new"
+                  className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Calendar className="h-5 w-5 text-blue-500 mr-3" />
+                  <span className="font-medium text-gray-900">
+                    Add Reservation
+                  </span>
+                  <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />
+                </Link>
+                <Link
+                  href="/inventory/add"
+                  className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Package className="h-5 w-5 text-green-500 mr-3" />
+                  <span className="font-medium text-gray-900">
+                    Update Inventory
+                  </span>
+                  <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />
+                </Link>
+                <Link
+                  href="/maintenance/schedule"
+                  className="flex items-center p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Wrench className="h-5 w-5 text-orange-500 mr-3" />
+                  <span className="font-medium text-gray-900">
+                    Schedule Maintenance
+                  </span>
+                  <ChevronRight className="h-4 w-4 ml-auto text-gray-400" />
+                </Link>
+              </div>
+            </section>
+          </div>
+
+          {/* Column 2 - Inventory & Maintenance */}
+          <div className="space-y-6">
+            {/* Inventory Alerts */}
+            <section className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                  <Package className="h-6 w-6 text-green-600 mr-2" />
+                  Inventory Status
+                </h2>
+                <Link
+                  href="/inventory"
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
+                  View All
+                </Link>
+              </div>
+
+              {inventoryAlerts.length > 0 ? (
+                <div className="space-y-3">
+                  {inventoryAlerts.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`p-3 rounded-lg border-l-4 ${
+                        item.status === "critical"
+                          ? "border-l-red-400 bg-red-50"
+                          : "border-l-yellow-400 bg-yellow-50"
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4
+                            className={`font-medium ${
+                              item.status === "critical"
+                                ? "text-red-900"
+                                : "text-yellow-900"
+                            }`}
+                          >
+                            {item.name}
+                          </h4>
+                          <p
+                            className={`text-sm ${
+                              item.status === "critical"
+                                ? "text-red-800"
+                                : "text-yellow-800"
+                            }`}
+                          >
+                            {item.current_stock} / {item.min_stock} minimum
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            item.status === "critical"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+
+                  <Link
+                    href="/inventory/restock"
+                    className="block w-full text-center py-2 bg-blue-600 hover:bg-blue-700 transition-colors font-medium"
+                    style={{ color: '#ffffff' }}
+                  >
+                    Create Shopping List
+                  </Link>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500">
+                  <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-700">
+                    All essentials are well stocked!
+                  </p>
+                  <Link
+                    href="/inventory"
+                    className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block font-medium"
+                  >
+                    Manage inventory
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            {/* Maintenance Alerts */}
+            {maintenanceAlerts.length > 0 && (
+              <section className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold flex items-center text-gray-900">
+                    <Wrench className="h-6 w-6 text-orange-600 mr-2" />
+                    Maintenance Alerts
+                  </h2>
+                  <Link
+                    href="/maintenance"
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    View All
+                  </Link>
+                </div>
+
+                <div className="space-y-3">
+                  {maintenanceAlerts.slice(0, 3).map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="flex items-center justify-between p-3 border-l-4 border-l-orange-400 bg-orange-50"
+                    >
+                      <div>
+                        <h4 className="font-medium text-orange-900">
+                          {alert.title}
+                        </h4>
+                        <p className="text-sm text-orange-800">
+                          {alert.description}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded text-xs font-medium ${
+                          alert.severity === "critical"
+                            ? "bg-red-100 text-red-800"
+                            : alert.severity === "high"
+                            ? "bg-orange-100 text-orange-800"
+                            : "bg-yellow-100 text-yellow-800"
+                        }`}
+                      >
+                        {alert.severity}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
       </div>
     </AuthenticatedLayout>
   );
