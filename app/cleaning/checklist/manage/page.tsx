@@ -586,8 +586,7 @@ export default function ManageChecklistsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h3 className="text-xl font-bold mb-4">Delete Checklist</h3>
             <p className="mb-6">
-              Are you sure you want to delete &apos;{checklistToDelete?.name}
-              &apos;? This will also delete all items in this checklist. This
+              Are you sure you want to delete &apos;{checklistToDelete?.name}&apos;? This will also delete all items in this checklist. This
               action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">
