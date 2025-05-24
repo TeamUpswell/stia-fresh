@@ -354,7 +354,7 @@ export default function ChecklistItemsPage({ params }: PageParams) {
       requiredRole="manager"
       fallback={
         <div className="p-6">
-          You don't have permission to manage checklist items.
+          You don&apos;t have permission to manage checklist items.
         </div>
       }
     >

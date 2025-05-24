@@ -300,7 +300,7 @@ export default function ManageChecklistsPage() {
             requiredRole="manager"
             fallback={
               <div className="p-6">
-                You don't have permission to manage checklists.
+                You don&apos;t have permission to manage checklists.
               </div>
             }
           >
