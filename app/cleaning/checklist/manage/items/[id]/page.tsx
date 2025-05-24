@@ -422,7 +422,7 @@ export default function ChecklistItemsPage({ params }: PageParams) {
                   onDragEnd={handleDragEnd}
                   modifiers={[restrictToVerticalAxis]}
                 >
-                  <p className="text-sm text-gray-500 mb-3">Drag items to reorder them.</p>
+                  <p className="text-sm text-gray-500 mb-3">Drag items to reorder. Click &quot;Edit&quot; to modify or &quot;Delete&quot; to remove an item.</p>
                   <SortableContext items={items.map(item => item.id)} strategy={verticalListSortingStrategy}>
                     {items.map(item => (
                       <SortableItem 
@@ -449,7 +449,7 @@ export default function ChecklistItemsPage({ params }: PageParams) {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h3 className="text-xl font-bold mb-4">Delete Item</h3>
             <p className="mb-6">
-              Are you sure you want to delete the item "{itemToDelete?.text}"?
+              Are you sure you want to delete &apos;{itemToDelete?.text}&apos;?
               This action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">

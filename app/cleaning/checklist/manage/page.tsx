@@ -19,6 +19,7 @@ import {
   MoveUp,
   MoveDown,
 } from "lucide-react";
+import Image from "next/image";
 
 // Type definitions
 interface ChecklistItem {
@@ -567,6 +568,13 @@ export default function ManageChecklistsPage() {
                   </div>
                 )}
               </div>
+
+              <div className="mt-8 text-gray-500 dark:text-gray-400 text-sm">
+                <p>
+                  Click &quot;View Items&quot; to manage checklist items or
+                  &quot;Edit&quot; to modify checklist details.
+                </p>
+              </div>
             </div>
           </PermissionGate>
         </main>
@@ -578,9 +586,9 @@ export default function ManageChecklistsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h3 className="text-xl font-bold mb-4">Delete Checklist</h3>
             <p className="mb-6">
-              Are you sure you want to delete the checklist "
-              {checklistToDelete?.name}"? This will also delete all items in
-              this checklist. This action cannot be undone.
+              Are you sure you want to delete &apos;{checklistToDelete?.name}
+              &apos;? This will also delete all items in this checklist. This
+              action cannot be undone.
             </p>
             <div className="flex justify-end space-x-3">
               <button
