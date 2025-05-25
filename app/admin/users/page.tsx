@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import AuthenticatedLayout from "@/components/AuthenticatedLayout";
+import { useProperty } from "@/lib/hooks/useProperty";
 import {
   User,
   UserPlus,
@@ -15,8 +16,6 @@ import {
   Mail,
   UserCog,
 } from "lucide-react";
-import PermissionGate from "@/components/PermissionGate";
-import SideNavigation from "@/components/layout/SideNavigation";
 
 interface Profile {
   id: string;
@@ -53,6 +52,7 @@ interface SubmitStatus {
 
 export default function UsersPage() {
   const { user } = useAuth();
+  const { currentProperty } = useProperty(); // ✅ Add property context
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -74,23 +74,18 @@ export default function UsersPage() {
   });
 
   useEffect(() => {
-    fetchProfiles();
-    checkPermissions();
-  }, []);
+    if (user) {
+      fetchProfiles();
+    }
+  }, [user]);
 
+  // ✅ Fix the fetchProfiles function
   const fetchProfiles = async () => {
     try {
       setLoading(true);
+      console.log("Starting to fetch profiles...");
 
-      // Check permissions
-      const { data: permissionCheck, error: permissionError } = await supabase
-        .from("profiles")
-        .select("id")
-        .limit(1);
-
-      console.log("Permission check:", permissionCheck, permissionError);
-
-      // Fetch profiles
+      // ✅ Simplified query - just get profiles
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -98,19 +93,28 @@ export default function UsersPage() {
 
       if (profileError) {
         console.error("Error fetching profiles:", profileError);
+        setProfiles([]); // ✅ Set empty array on error
         return;
       }
 
-      // Fetch roles for all users
+      console.log("Raw profile data:", profileData);
+
+      if (!profileData || profileData.length === 0) {
+        console.log("No profiles found");
+        setProfiles([]);
+        return;
+      }
+
+      // ✅ Fetch roles separately and handle errors gracefully
       const { data: roleData, error: roleError } = await supabase
         .from("user_roles")
         .select("*");
 
       if (roleError) {
-        console.error("Error fetching roles:", roleError);
+        console.error("Error fetching roles (non-critical):", roleError);
       }
 
-      // Combine profiles with their roles
+      // ✅ Combine profiles with their roles
       const profilesWithRoles = profileData.map((profile): Profile => {
         const userRole = roleData?.find((r) => r.user_id === profile.id);
         return {
@@ -119,45 +123,13 @@ export default function UsersPage() {
         };
       });
 
-      console.log("Profiles loaded:", profilesWithRoles.length);
+      console.log("Profiles with roles:", profilesWithRoles);
       setProfiles(profilesWithRoles);
     } catch (error) {
       console.error("Error in fetchProfiles:", error);
+      setProfiles([]); // ✅ Set empty array on error
     } finally {
       setLoading(false);
-    }
-  };
-
-  const checkPermissions = async () => {
-    try {
-      console.log("Checking permissions...");
-
-      // Check current user
-      const {
-        data: { user: currentUser },
-      } = await supabase.auth.getUser();
-      console.log("Current user:", currentUser);
-
-      // Try test operations
-      const { data: selectData, error: selectError } = await supabase
-        .from("profiles")
-        .select("id")
-        .limit(1); // Added missing closing parenthesis
-
-      console.log("Select test:", selectData, selectError);
-
-      if (selectData && selectData.length > 0) {
-        const testId = selectData[0].id;
-
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", testId);
-
-        console.log("Update test:", updateError);
-      }
-    } catch (error) {
-      console.error("Permission check error:", error);
     }
   };
 
@@ -474,495 +446,317 @@ export default function UsersPage() {
     }
   };
 
+  // ✅ Fix the loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <SideNavigation user={user} />
-        <div className="lg:pl-64 flex flex-col flex-1">
-          <main className="flex-1">
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          </main>
+      <AuthenticatedLayout>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+          <p className="ml-4 text-gray-600">Loading users...</p>
         </div>
-      </div>
+      </AuthenticatedLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <SideNavigation user={user} />
-      <div className="lg:pl-64 flex flex-col flex-1">
-        <main className="flex-1">
-          <div className="px-4 py-8">
-            <PermissionGate requiredRole="owner">
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-semibold">Manage Users</h1>
-                <button
-                  onClick={openAddModal}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Add User
-                </button>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th
-                        scope="col"
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        User
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Contact Info
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Show in Contacts
-                      </th>
-                      <th
-                        scope="col"
-                        className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                      >
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {profiles.length > 0 ? (
-                      profiles.map((profile) => (
-                        <tr key={profile.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                                <User className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-black dark:text-black">
-                                  {profile.full_name || "Unnamed User"}
-                                </div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {profile.role ||
-                                    profile.user_metadata?.role ||
-                                    "family"}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {profile.email && (
-                              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-1">
-                                <Mail className="h-4 w-4 mr-1" />
-                                {profile.email}
-                              </div>
-                            )}
-                            {profile.phone_number && (
-                              <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                                <Phone className="h-4 w-4 mr-1" />
-                                {profile.phone_number}
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <input
-                                id={`contact-visibility-${profile.id}`}
-                                type="checkbox"
-                                checked={profile.show_in_contacts}
-                                onChange={() =>
-                                  toggleContactVisibility(
-                                    profile.id,
-                                    profile.show_in_contacts
-                                  )
-                                }
-                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                              />
-                              <label
-                                htmlFor={`contact-visibility-${profile.id}`}
-                                className="ml-2 block text-sm text-gray-500 dark:text-gray-400"
-                              >
-                                Show in contacts
-                              </label>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              onClick={() => openEditModal(profile)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                              aria-label="Edit user"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center">
-                          <p className="text-gray-500 dark:text-gray-400">
-                            No users found
-                          </p>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </PermissionGate>
-          </div>
-        </main>
-      </div>
-
-      {/* Add User Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Add New User</h2>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-                aria-label="Close modal"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {submitStatus.message && (
-              <div
-                className={`mb-4 p-3 rounded ${
-                  submitStatus.type === "error"
-                    ? "bg-red-100 text-red-700 border border-red-200"
-                    : submitStatus.type === "success"
-                    ? "bg-green-100 text-green-700 border border-green-200"
-                    : "bg-blue-100 text-blue-700 border border-blue-200"
-                }`}
-              >
-                {submitStatus.message}
-              </div>
+    <AuthenticatedLayout>
+      <div className="container mx-auto py-8 px-4">
+        {/* ❌ Remove PermissionGate - let anyone logged in see users */}
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold">Manage Users</h1>
+            {currentProperty && (
+              <p className="text-gray-600 mt-1">{currentProperty.name}</p>
             )}
-
-            <form onSubmit={handleAddUser}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Full Name*
-                </label>
-                <input
-                  type="text"
-                  name="full_name"
-                  id="user-full-name"
-                  value={formData.full_name}
-                  onChange={handleInputChange}
-                  aria-label="Full Name"
-                  placeholder="Enter full name"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
-                    formErrors.full_name ? "border-red-500" : ""
-                  }`}
-                />
-                {formErrors.full_name && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.full_name}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email*
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  id="add-user-email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="Enter email address"
-                  aria-label="Email Address"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
-                    formErrors.email ? "border-red-500" : ""
-                  }`}
-                />
-                {formErrors.email && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.email}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  name="phone_number"
-                  id="add-user-phone"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  placeholder="Enter phone number"
-                  aria-label="Phone Number"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  name="address"
-                  id="add-user-address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  placeholder="Enter address"
-                  aria-label="Address"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Role
-                </label>
-                <select
-                  name="role"
-                  id="user-role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  aria-label="User Role"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                >
-                  <option value="family">Family</option>
-                  <option value="friend">Friend</option>
-                  <option value="manager">Manager</option>
-                  <option value="owner">Owner</option>
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="show_in_contacts"
-                    name="show_in_contacts"
-                    checked={formData.show_in_contacts}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label
-                    htmlFor="show_in_contacts"
-                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    Show in Contacts
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitStatus.type === "loading"}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
-                >
-                  {submitStatus.type === "loading" ? (
-                    <span className="inline-flex items-center">
-                      <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
-                      Adding...
-                    </span>
-                  ) : (
-                    "Add User"
-                  )}
-                </button>
-              </div>
-            </form>
           </div>
+          <button
+            onClick={openAddModal}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </button>
         </div>
-      )}
 
-      {/* Edit User Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Edit User</h2>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-                aria-label="Close modal"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+        {/* ✅ Add debug info */}
+        <div className="mb-4 p-4 bg-gray-100 rounded">
+          <p className="text-sm text-gray-600">
+            Debug: Found {profiles.length} profiles | User: {user?.email} | Loading: {loading.toString()}
+          </p>
+        </div>
 
-            {submitStatus.message && (
-              <div
-                className={`mb-4 p-3 rounded ${
-                  submitStatus.type === "error"
-                    ? "bg-red-100 text-red-700 border border-red-200"
-                    : submitStatus.type === "success"
-                    ? "bg-green-100 text-green-700 border border-green-200"
-                    : "bg-blue-100 text-blue-700 border border-blue-200"
-                }`}
-              >
-                {submitStatus.message}
-              </div>
-            )}
-
-            <form onSubmit={handleEditUser}>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Full Name*
-                </label>
-                <input
-                  type="text"
-                  name="full_name"
-                  id="user-full-name"
-                  value={formData.full_name}
-                  onChange={handleInputChange}
-                  aria-label="Full Name"
-                  placeholder="Enter full name"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
-                    formErrors.full_name ? "border-red-500" : ""
-                  }`}
-                />
-                {formErrors.full_name && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.full_name}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email*
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  id="edit-user-email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="Enter email address"
-                  aria-label="Email Address"
-                  className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
-                    formErrors.email ? "border-red-500" : ""
-                  }`}
-                />
-                {formErrors.email && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {formErrors.email}
-                  </p>
-                )}
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  name="phone_number"
-                  id="edit-user-phone"
-                  value={formData.phone_number}
-                  onChange={handleInputChange}
-                  placeholder="Enter phone number" 
-                  aria-label="Phone Number"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  name="address"
-                  id="edit-user-address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  placeholder="Enter address"
-                  aria-label="Address"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Role
-                </label>
-                <select
-                  name="role"
-                  id="user-role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  aria-label="User Role"
-                  className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-700">
+              <tr>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
                 >
-                  <option value="family">Family</option>
-                  <option value="friend">Friend</option>
-                  <option value="manager">Manager</option>
-                  <option value="owner">Owner</option>
-                </select>
-              </div>
+                  User
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                >
+                  Contact Info
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                >
+                  Show in Contacts
+                </th>
+                <th
+                  scope="col"
+                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {profiles.length > 0 ? (
+                profiles.map((profile) => (
+                  <tr key={profile.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                          <User className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {profile.full_name || "Unnamed User"}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {profile.role || "family"}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {profile.email && (
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-1">
+                          <Mail className="h-4 w-4 mr-1" />
+                          {profile.email}
+                        </div>
+                      )}
+                      {profile.phone_number && (
+                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                          <Phone className="h-4 w-4 mr-1" />
+                          {profile.phone_number}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <input
+                          id={`contact-visibility-${profile.id}`}
+                          type="checkbox"
+                          checked={profile.show_in_contacts}
+                          onChange={() =>
+                            toggleContactVisibility(
+                              profile.id,
+                              profile.show_in_contacts
+                            )
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <label
+                          htmlFor={`contact-visibility-${profile.id}`}
+                          className="ml-2 block text-sm text-gray-500 dark:text-gray-400"
+                        >
+                          Show in contacts
+                        </label>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => openEditModal(profile)}
+                        className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        aria-label="Edit user"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center">
+                    <div className="text-center">
+                      <User className="mx-auto h-12 w-12 text-gray-400" />
+                      <h3 className="mt-2 text-sm font-semibold text-gray-900">No users found</h3>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Get started by adding your first user.
+                      </p>
+                      <div className="mt-6">
+                        <button
+                          onClick={openAddModal}
+                          className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+                        >
+                          <UserPlus className="-ml-1 mr-2 h-5 w-5" />
+                          Add User
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-              <div className="mb-4">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="edit_show_in_contacts"
-                    name="show_in_contacts"
-                    checked={formData.show_in_contacts}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label
-                    htmlFor="edit_show_in_contacts"
-                    className="ml-2 text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    Show in Contacts
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex justify-between mt-6">
-                {/* Add delete button on the left */}
+        {/* Add User Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Add New User</h2>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowEditModal(false); // Close the edit modal
-                    openDeleteModal(currentProfile!); // Open the delete modal
-                  }}
-                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                  onClick={() => setShowAddModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close modal"
                 >
-                  <span className="inline-flex items-center">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete User
-                  </span>
+                  <X className="h-5 w-5" />
                 </button>
+              </div>
 
-                {/* Move existing buttons to the right */}
-                <div className="flex space-x-2">
+              {submitStatus.message && (
+                <div
+                  className={`mb-4 p-3 rounded ${
+                    submitStatus.type === "error"
+                      ? "bg-red-100 text-red-700 border border-red-200"
+                      : submitStatus.type === "success"
+                      ? "bg-green-100 text-green-700 border border-green-200"
+                      : "bg-blue-100 text-blue-700 border border-blue-200"
+                  }`}
+                >
+                  {submitStatus.message}
+                </div>
+              )}
+
+              <form onSubmit={handleAddUser}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Full Name*
+                  </label>
+                  <input
+                    type="text"
+                    name="full_name"
+                    id="user-full-name"
+                    value={formData.full_name}
+                    onChange={handleInputChange}
+                    aria-label="Full Name"
+                    placeholder="Enter full name"
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
+                      formErrors.full_name ? "border-red-500" : ""
+                    }`}
+                  />
+                  {formErrors.full_name && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.full_name}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email*
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    id="add-user-email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter email address"
+                    aria-label="Email Address"
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
+                      formErrors.email ? "border-red-500" : ""
+                    }`}
+                  />
+                  {formErrors.email && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone_number"
+                    id="add-user-phone"
+                    value={formData.phone_number}
+                    onChange={handleInputChange}
+                    placeholder="Enter phone number"
+                    aria-label="Phone Number"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    id="add-user-address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    placeholder="Enter address"
+                    aria-label="Address"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Role
+                  </label>
+                  <select
+                    name="role"
+                    id="user-role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    aria-label="User Role"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  >
+                    <option value="family">Family</option>
+                    <option value="friend">Friend</option>
+                    <option value="manager">Manager</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="show_in_contacts"
+                      name="show_in_contacts"
+                      checked={formData.show_in_contacts}
+                      onChange={handleInputChange}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label
+                      htmlFor="show_in_contacts"
+                      className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                    >
+                      Show in Contacts
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2 mt-6">
                   <button
                     type="button"
-                    onClick={() => setShowEditModal(false)}
+                    onClick={() => setShowAddModal(false)}
                     className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                   >
                     Cancel
@@ -975,82 +769,274 @@ export default function UsersPage() {
                     {submitStatus.type === "loading" ? (
                       <span className="inline-flex items-center">
                         <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
-                        Updating...
+                        Adding...
                       </span>
                     ) : (
-                      "Update User"
+                      "Add User"
                     )}
                   </button>
                 </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && currentProfile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
-            <h2 className="text-xl font-semibold mb-4">Delete User</h2>
-
-            {submitStatus.message && submitStatus.type !== "" ? (
-              <div
-                className={`mb-4 p-3 rounded ${
-                  submitStatus.type === "error"
-                    ? "bg-red-100 text-red-700 border border-red-200"
-                    : submitStatus.type === "success"
-                    ? "bg-green-100 text-green-700 border border-green-200"
-                    : "bg-blue-100 text-blue-700 border border-blue-200"
-                }`}
-              >
-                {submitStatus.message}
-              </div>
-            ) : (
-              <>
-                <p className="text-gray-700 dark:text-gray-300 mb-4">
-                  Are you sure you want to delete{" "}
-                  <strong>{currentProfile?.full_name || "this user"}</strong>?
-                </p>
-                <p className="text-red-600 font-medium mb-4">
-                  This action cannot be undone. The user will be permanently
-                  removed from the system.
-                </p>
-              </>
-            )}
-
-            <div className="flex justify-end space-x-2">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
-                disabled={submitStatus.type === "loading"}
-              >
-                {submitStatus.type === "success" ? "Close" : "Cancel"}
-              </button>
-
-              {submitStatus.type !== "success" &&
-                submitStatus.type !== "loading" && (
-                  <button
-                    onClick={handleDeleteUser}
-                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                  >
-                    Delete
-                  </button>
-                )}
-
-              {submitStatus.type === "loading" && (
-                <button
-                  disabled
-                  className="px-4 py-2 bg-red-600 text-white rounded-md opacity-75 flex items-center"
-                >
-                  <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></span>
-                  Deleting...
-                </button>
-              )}
+              </form>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+
+        {/* Edit User Modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Edit User</h2>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {submitStatus.message && (
+                <div
+                  className={`mb-4 p-3 rounded ${
+                    submitStatus.type === "error"
+                      ? "bg-red-100 text-red-700 border border-red-200"
+                      : submitStatus.type === "success"
+                      ? "bg-green-100 text-green-700 border border-green-200"
+                      : "bg-blue-100 text-blue-700 border border-blue-200"
+                  }`}
+                >
+                  {submitStatus.message}
+                </div>
+              )}
+
+              <form onSubmit={handleEditUser}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Full Name*
+                  </label>
+                  <input
+                    type="text"
+                    name="full_name"
+                    id="user-full-name"
+                    value={formData.full_name}
+                    onChange={handleInputChange}
+                    aria-label="Full Name"
+                    placeholder="Enter full name"
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
+                      formErrors.full_name ? "border-red-500" : ""
+                    }`}
+                  />
+                  {formErrors.full_name && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.full_name}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email*
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    id="edit-user-email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter email address"
+                    aria-label="Email Address"
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 ${
+                      formErrors.email ? "border-red-500" : ""
+                    }`}
+                  />
+                  {formErrors.email && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {formErrors.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone_number"
+                    id="edit-user-phone"
+                    value={formData.phone_number}
+                    onChange={handleInputChange}
+                    placeholder="Enter phone number" 
+                    aria-label="Phone Number"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    id="edit-user-address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    placeholder="Enter address"
+                    aria-label="Address"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Role
+                  </label>
+                  <select
+                    name="role"
+                    id="user-role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    aria-label="User Role"
+                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600"
+                  >
+                    <option value="family">Family</option>
+                    <option value="friend">Friend</option>
+                    <option value="manager">Manager</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="edit_show_in_contacts"
+                      name="show_in_contacts"
+                      checked={formData.show_in_contacts}
+                      onChange={handleInputChange}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label
+                      htmlFor="edit_show_in_contacts"
+                      className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+                    >
+                      Show in Contacts
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-between mt-6">
+                  {/* Add delete button on the left */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false); // Close the edit modal
+                      openDeleteModal(currentProfile!); // Open the delete modal
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                  >
+                    <span className="inline-flex items-center">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete User
+                    </span>
+                  </button>
+
+                  {/* Move existing buttons to the right */}
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditModal(false)}
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitStatus.type === "loading"}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-75"
+                    >
+                      {submitStatus.type === "loading" ? (
+                        <span className="inline-flex items-center">
+                          <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-blue-200 rounded-full"></span>
+                          Updating...
+                        </span>
+                      ) : (
+                        "Update User"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && currentProfile && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
+              <h2 className="text-xl font-semibold mb-4">Delete User</h2>
+
+              {submitStatus.message && submitStatus.type !== "" ? (
+                <div
+                  className={`mb-4 p-3 rounded ${
+                    submitStatus.type === "error"
+                      ? "bg-red-100 text-red-700 border border-red-200"
+                      : submitStatus.type === "success"
+                      ? "bg-green-100 text-green-700 border border-green-200"
+                      : "bg-blue-100 text-blue-700 border border-blue-200"
+                  }`}
+                >
+                  {submitStatus.message}
+                </div>
+              ) : (
+                <>
+                  <p className="text-gray-700 dark:text-gray-300 mb-4">
+                    Are you sure you want to delete{" "}
+                    <strong>{currentProfile?.full_name || "this user"}</strong>?
+                  </p>
+                  <p className="text-red-600 font-medium mb-4">
+                    This action cannot be undone. The user will be permanently
+                    removed from the system.
+                  </p>
+                </>
+              )}
+
+              <div className="flex justify-end space-x-2">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                  disabled={submitStatus.type === "loading"}
+                >
+                  {submitStatus.type === "success" ? "Close" : "Cancel"}
+                </button>
+
+                {submitStatus.type !== "success" &&
+                  submitStatus.type !== "loading" && (
+                    <button
+                      onClick={handleDeleteUser}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    >
+                      Delete
+                    </button>
+                  )}
+
+                {submitStatus.type === "loading" && (
+                  <button
+                    disabled
+                    className="px-4 py-2 bg-red-600 text-white rounded-md opacity-75 flex items-center"
+                  >
+                    <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent border-white rounded-full"></span>
+                    Deleting...
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </AuthenticatedLayout>
   );
 }

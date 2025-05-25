@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
-import PermissionGate from "@/components/PermissionGate";
 import { PlusIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { useProperty } from "@/lib/hooks/useProperty";
 
 // Define inventory item type based on your actual database schema
 type InventoryItem = {
@@ -76,6 +76,7 @@ const handleInventoryImageUpload = async (file: File, itemId: string) => {
 
 export default function InventoryPage() {
   const { user } = useAuth();
+  const { currentProperty } = useProperty(); // ✅ Add property context
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
@@ -101,14 +102,16 @@ export default function InventoryPage() {
     });
   };
 
+  // ✅ Update fetchItems to use currentProperty
   const fetchItems = useCallback(async () => {
-    if (!user) return;
+    if (!user || !currentProperty) return; // ✅ Add currentProperty check
 
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("inventory")
-        .select("*");
+        .select("*")
+        .eq("property_id", currentProperty.id); // ✅ Filter by current property
 
       if (error) throw error;
       setItems(data || []);
@@ -118,30 +121,31 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, setLoading, setItems, setError, supabase]);
+  }, [user, currentProperty, setLoading]); // ✅ Add currentProperty dependency
 
   useEffect(() => {
-    if (user) {
+    if (user && currentProperty) { // ✅ Add currentProperty check
       fetchItems();
     }
-  }, [user, fetchItems]);
+  }, [user, currentProperty, fetchItems]); // ✅ Add currentProperty dependency
 
+  // ✅ Update handleSubmit to include property_id
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !currentProperty) return; // ✅ Add currentProperty check
 
     try {
       setError(null);
       
       if (editingItem) {
-        // Update existing item
+        // Update existing item (no property_id needed for updates)
         const { error } = await supabase
           .from("inventory")
           .update({
             name: formData.name,
             quantity: formData.quantity,
             category: formData.category,
-            threshold: formData.threshold, // Make sure this matches your DB column name exactly
+            threshold: formData.threshold,
             last_updated_by: user.id,
             updated_at: new Date().toISOString()
           })
@@ -157,6 +161,7 @@ export default function InventoryPage() {
             quantity: formData.quantity,
             category: formData.category,
             threshold: formData.threshold,
+            property_id: currentProperty.id, // ✅ Add property_id for new items
             user_id: user.id,
             last_updated_by: user.id
           });
@@ -167,6 +172,7 @@ export default function InventoryPage() {
       // Refresh items list
       await fetchItems();
       setIsAddingItem(false);
+      setEditingItem(null); // ✅ Add this line
       resetForm();
     } catch (err: any) {
       console.error("Error saving inventory item:", err);
@@ -245,14 +251,21 @@ export default function InventoryPage() {
 
   return (
     <AuthenticatedLayout>
-      <PermissionGate 
-        requiredRole="manager" 
-        fallback={<div className="p-8 text-center">Sorry, you need manager permissions to access inventory.</div>}
-      >
+      {/* ❌ Remove PermissionGate */}
+      {!currentProperty ? (
+        <div className="text-center py-8">
+          <h2 className="text-xl font-semibold mb-2">No Property Selected</h2>
+          <p className="text-gray-600">
+            Please select a property from your account settings to manage inventory.
+          </p>
+        </div>
+      ) : (
         <div className="py-8 px-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold">Inventory Management</h1>
+              <h1 className="text-2xl font-bold">
+                {currentProperty ? `${currentProperty.name} - ` : ""}Inventory Management
+              </h1>
               <button
                 className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 onClick={() => {
@@ -388,7 +401,7 @@ export default function InventoryPage() {
             )}
           </div>
         </div>
-      </PermissionGate>
+      )}
 
       {/* Add/Edit Modal */}
       {isAddingItem && (

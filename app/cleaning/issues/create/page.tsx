@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
-import { getMainProperty } from "@/lib/propertyService";
+import { useProperty } from "@/lib/hooks/useProperty";
 import { ArrowLeft, Upload, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -31,7 +31,8 @@ const LOCATIONS = [
 export default function ReportIssue() {
   const { user } = useAuth();
   const router = useRouter();
-  const [property, setProperty] = useState(null);
+  const { currentProperty } = useProperty();
+  
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
@@ -42,14 +43,6 @@ export default function ReportIssue() {
     severity: "Medium",
     location: "",
     notes: ""
-  });
-
-  useState(() => {
-    async function loadProperty() {
-      const propertyData = await getMainProperty();
-      setProperty(propertyData);
-    }
-    loadProperty();
   });
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -117,7 +110,7 @@ export default function ReportIssue() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user || !property) {
+    if (!user || !currentProperty) {
       toast.error('You must be logged in and have a property selected');
       return;
     }
@@ -138,7 +131,7 @@ export default function ReportIssue() {
         .from('cleaning_issues')
         .insert([
           {
-            property_id: property?.id || "",
+            property_id: currentProperty.id, // ✅ Use currentProperty.id
             description: issueData.description,
             severity: issueData.severity,
             location: issueData.location,
@@ -170,165 +163,179 @@ export default function ReportIssue() {
           </Link>
         </div>
         
-        <h1 className="text-2xl font-semibold mb-6">Report Cleaning Issue</h1>
-        
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Description */}
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-                Issue Description *
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={issueData.description}
-                onChange={handleChange}
-                required
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Describe the issue in detail"
-              />
-            </div>
+        {/* ✅ Add property validation: */}
+        {!currentProperty ? (
+          <div className="text-center py-8">
+            <h2 className="text-xl font-semibold mb-2">No Property Selected</h2>
+            <p className="text-gray-600">
+              Please select a property from your account settings to report issues.
+            </p>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold mb-6">
+              {currentProperty.name} - Report Cleaning Issue
+            </h1>
             
-            {/* Location & Severity (side by side on larger screens) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Location dropdown */}
-              <div>
-                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-                  Location *
-                </label>
-                <select
-                  id="location"
-                  name="location"
-                  value={issueData.location}
-                  onChange={handleChange}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select location</option>
-                  {LOCATIONS.map(location => (
-                    <option key={location} value={location}>{location}</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Severity selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Severity *
-                </label>
-                <div className="flex space-x-4">
-                  {SEVERITY_LEVELS.map(level => (
-                    <label key={level.id} className="flex items-center">
-                      <input
-                        type="radio"
-                        name="severity"
-                        value={level.id}
-                        checked={issueData.severity === level.id}
-                        onChange={handleChange}
-                        className="sr-only"
-                      />
-                      <div 
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          issueData.severity === level.id 
-                            ? level.color + ' ring-2 ring-offset-2 ring-gray-500'
-                            : 'bg-gray-100 text-gray-800'
-                        } cursor-pointer`}
-                      >
-                        {level.label}
-                      </div>
-                    </label>
-                  ))}
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Description */}
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                    Issue Description *
+                  </label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={issueData.description}
+                    onChange={handleChange}
+                    required
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Describe the issue in detail"
+                  />
                 </div>
-              </div>
-            </div>
-            
-            {/* Photo Upload */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Photos (Optional)
-              </label>
-              
-              <div className="flex flex-wrap gap-4 mb-3">
-                {photos.map((photo, index) => (
-                  <div key={index} className="relative w-24 h-24">
-                    <img 
-                      src={photo.preview} 
-                      alt={`Preview ${index}`}
-                      className="w-24 h-24 object-cover rounded-md border border-gray-300"
-                    />
+                
+                {/* Location & Severity (side by side on larger screens) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Location dropdown */}
+                  <div>
+                    <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                      Location *
+                    </label>
+                    <select
+                      id="location"
+                      name="location"
+                      value={issueData.location}
+                      onChange={handleChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select location</option>
+                      {LOCATIONS.map(location => (
+                        <option key={location} value={location}>{location}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Severity selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Severity *
+                    </label>
+                    <div className="flex space-x-4">
+                      {SEVERITY_LEVELS.map(level => (
+                        <label key={level.id} className="flex items-center">
+                          <input
+                            type="radio"
+                            name="severity"
+                            value={level.id}
+                            checked={issueData.severity === level.id}
+                            onChange={handleChange}
+                            className="sr-only"
+                          />
+                          <div 
+                            className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              issueData.severity === level.id 
+                                ? level.color + ' ring-2 ring-offset-2 ring-gray-500'
+                                : 'bg-gray-100 text-gray-800'
+                            } cursor-pointer`}
+                          >
+                            {level.label}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Photo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Photos (Optional)
+                  </label>
+                  
+                  <div className="flex flex-wrap gap-4 mb-3">
+                    {photos.map((photo, index) => (
+                      <div key={index} className="relative w-24 h-24">
+                        <img 
+                          src={photo.preview} 
+                          alt={`Preview ${index}`}
+                          className="w-24 h-24 object-cover rounded-md border border-gray-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                    
                     <button
                       type="button"
-                      onClick={() => removePhoto(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-gray-500 hover:text-gray-700 hover:border-gray-500"
                     >
-                      <X className="h-3 w-3" />
+                      <Upload className="h-8 w-8 mb-1" />
+                      <span className="text-xs">Add Photo</span>
                     </button>
+                    
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={handlePhotoSelect}
+                    />
                   </div>
-                ))}
+                  
+                  <p className="text-xs text-gray-500">
+                    Upload photos of the issue to help with resolution
+                  </p>
+                </div>
                 
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-gray-500 hover:text-gray-700 hover:border-gray-500"
-                >
-                  <Upload className="h-8 w-8 mb-1" />
-                  <span className="text-xs">Add Photo</span>
-                </button>
+                {/* Additional Notes */}
+                <div>
+                  <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+                    Additional Notes (Optional)
+                  </label>
+                  <textarea
+                    id="notes"
+                    name="notes"
+                    value={issueData.notes}
+                    onChange={handleChange}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Any other details we should know?"
+                  />
+                </div>
                 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handlePhotoSelect}
-                />
-              </div>
-              
-              <p className="text-xs text-gray-500">
-                Upload photos of the issue to help with resolution
-              </p>
+                {/* Submit Button */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={loading || uploading}
+                    className={`px-4 py-2 rounded-md text-white font-medium ${
+                      loading || uploading 
+                        ? 'bg-blue-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {loading || uploading ? (
+                      <div className="flex items-center">
+                        <div className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
+                        {uploading ? 'Uploading Photos...' : 'Submitting...'}
+                      </div>
+                    ) : 'Submit Issue Report'}
+                  </button>
+                </div>
+              </form>
             </div>
-            
-            {/* Additional Notes */}
-            <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-                Additional Notes (Optional)
-              </label>
-              <textarea
-                id="notes"
-                name="notes"
-                value={issueData.notes}
-                onChange={handleChange}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Any other details we should know?"
-              />
-            </div>
-            
-            {/* Submit Button */}
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={loading || uploading}
-                className={`px-4 py-2 rounded-md text-white font-medium ${
-                  loading || uploading 
-                    ? 'bg-blue-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {loading || uploading ? (
-                  <div className="flex items-center">
-                    <div className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin mr-2"></div>
-                    {uploading ? 'Uploading Photos...' : 'Submitting...'}
-                  </div>
-                ) : 'Submit Issue Report'}
-              </button>
-            </div>
-          </form>
-        </div>
+          </>
+        )}
       </div>
     </AuthenticatedLayout>
   );

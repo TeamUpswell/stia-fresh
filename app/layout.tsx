@@ -1,13 +1,14 @@
+import "./globals.css";
+import { Inter } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
-import { ThemeProvider } from "@/components/ThemeProvider";
 import { TenantProvider } from "@/lib/hooks/useTenant";
 import { PropertyProvider } from "@/lib/hooks/useProperty";
-import "./globals.css";
-import type { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Stia",
-  description: "Stia Application",
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata = {
+  title: "STIA Fresh",
+  description: "Property Management System",
 };
 
 export default function RootLayout({
@@ -17,20 +18,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <head>
-        <script
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-          async
-          defer
-        />
-      </head>
-      <body className="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+      <body
+        className={`${inter.className} min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}
+      >
         <AuthProvider>
-          <ThemeProvider>
-            <TenantProvider>
-              <PropertyProvider>{children}</PropertyProvider>
-            </TenantProvider>
-          </ThemeProvider>
+          <TenantProvider>
+            <PropertyProvider>{children}</PropertyProvider>
+          </TenantProvider>
         </AuthProvider>
       </body>
     </html>

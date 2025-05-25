@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
-import { TenantSwitcher } from "@/components/TenantSwitcher";
 
 // Define interfaces for navigation items
 interface NavigationItem {
@@ -66,18 +65,11 @@ const navigationStructure: NavigationSection[] = [
       { name: "Inventory", href: "/inventory", icon: PackageIcon },
       { name: "Contacts", href: "/contacts", icon: PhoneIcon },
       { name: "Cleaning", href: "/cleaning", icon: Sparkles },
-      // Account settings moved to bottom
     ],
   },
   {
     category: "Admin",
     items: [
-      {
-        name: "Property Settings",
-        href: "/admin/property",
-        icon: CogIcon,
-        requiredRole: "manager",
-      },
       {
         name: "Users",
         href: "/admin/users",
@@ -85,10 +77,10 @@ const navigationStructure: NavigationSection[] = [
         requiredRole: "owner",
       },
       {
-        name: "Account Settings",
-        href: "/admin/account",
+        name: "Property Settings",
+        href: "/admin/property",
         icon: CogIcon,
-        requiredRole: "owner",
+        requiredRole: "manager",
       },
     ],
   },
@@ -164,10 +156,7 @@ export default function SideNavigation({ user }: SideNavigationProps) {
               {isExpanded && (
                 <div className="space-y-1 pl-1">
                   {section.items.map((item) => {
-                    if (
-                      item.requiredRole &&
-                      !hasPermission(item.requiredRole)
-                    ) {
+                    if (item.requiredRole && !user) {
                       return null;
                     }
 
@@ -204,9 +193,20 @@ export default function SideNavigation({ user }: SideNavigationProps) {
         })}
       </div>
 
-      {/* Tenant Switcher */}
-      <div className="px-3 py-4 border-t dark:border-gray-800">
-        <TenantSwitcher />
+      {/* Bottom Section - Account Settings */}
+      <div className="px-3 py-4 border-t dark:border-gray-800 space-y-4">
+        {/* Account Settings Link */}
+        <Link
+          href="/account"
+          className={`flex items-center px-4 py-2 text-sm rounded-md w-full ${
+            isActive("/account")
+              ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+              : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+          } transition-colors`}
+        >
+          <UserIcon className="h-5 w-5 mr-3" />
+          Account Settings
+        </Link>
       </div>
     </div>
   );

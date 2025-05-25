@@ -140,5 +140,15 @@ export function useTenant() {
     }
     throw new Error("useTenant must be used within a TenantProvider");
   }
+
+  // Add debug log in your useTenant hook
+  console.log("🏢 useTenant Debug:", {
+    user: context.user?.id,
+    tenants: context.userTenants,
+    currentTenant: context.currentTenant,
+    loading: context.isLoading,
+    tenantsLength: context.userTenants?.length
+  });
+
   return context;
 }

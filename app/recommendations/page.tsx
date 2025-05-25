@@ -62,7 +62,7 @@ interface RecommendationNote {
 }
 
 export default function RecommendationsPage() {
-  const { user, hasPermission } = useAuth();
+  const { user } = useAuth(); // Remove hasPermission from destructuring
   const { currentProperty } = useProperty();
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,15 +276,10 @@ export default function RecommendationsPage() {
   };
 
   const handleStartEditing = (recommendation: Recommendation) => {
-    if (
-      !hasPermission("owner") &&
-      !hasPermission("manager") &&
-      !hasPermission("family")
-    ) {
+    if (!user) {
       toast.error("You don't have permission to edit recommendations");
       return;
     }
-
     setEditingRecommendation(recommendation);
     setIsEditing(true);
   };
@@ -326,11 +321,7 @@ export default function RecommendationsPage() {
     id: string,
     currentStatus: boolean | undefined
   ) => {
-    if (
-      !hasPermission("owner") &&
-      !hasPermission("manager") &&
-      !hasPermission("family")
-    ) {
+    if (!user) {
       toast.error("You don't have permission to change recommendation status");
       return;
     }
@@ -360,11 +351,7 @@ export default function RecommendationsPage() {
   };
 
   const handleDeleteRecommendation = async (id: string) => {
-    if (
-      !hasPermission("owner") &&
-      !hasPermission("manager") &&
-      !hasPermission("family")
-    ) {
+    if (!user) {
       toast.error("You don't have permission to delete recommendations");
       return;
     }
@@ -927,16 +914,12 @@ export default function RecommendationsPage() {
                               {category}
                             </option>
                           ))}
-                          {(hasPermission("owner") ||
-                            hasPermission("manager")) && (
+                          {user && (
                             <>
                               <option disabled className="text-gray-400">
                                 ────────────────────
                               </option>
-                              <option
-                                value="manage-categories"
-                                className="font-bold"
-                              >
+                              <option value="manage-categories" className="font-bold">
                                 ⚙️ Manage Categories
                               </option>
                             </>
@@ -1216,8 +1199,7 @@ export default function RecommendationsPage() {
                                 {category}
                               </option>
                             ))}
-                            {(hasPermission("owner") ||
-                              hasPermission("manager")) && (
+                            {user && (
                               <>
                                 <option disabled>─────────────</option>
                                 <option value="manage-categories">
@@ -1440,7 +1422,7 @@ export default function RecommendationsPage() {
                   >
                     Filter by Category
                   </label>
-                  {(hasPermission("owner") || hasPermission("manager")) && (
+                  {user && (
                     <button
                       onClick={() => setShowCategoryModal(true)}
                       type="button"
@@ -1553,9 +1535,7 @@ export default function RecommendationsPage() {
                         </div>
                       )}
 
-                      {(hasPermission("owner") ||
-                        hasPermission("manager") ||
-                        hasPermission("family")) && (
+                      {user && (
                         <button
                           onClick={() => handleDeleteRecommendation(item.id)}
                           className="absolute top-2 right-12 bg-red-500/90 hover:bg-red-600 text-white p-1.5 rounded-full z-10"
@@ -1565,9 +1545,7 @@ export default function RecommendationsPage() {
                         </button>
                       )}
 
-                      {(hasPermission("owner") ||
-                        hasPermission("manager") ||
-                        hasPermission("family")) && (
+                      {user && (
                         <button
                           onClick={() =>
                             toggleRecommendationStatus(
@@ -1594,9 +1572,7 @@ export default function RecommendationsPage() {
                         </button>
                       )}
 
-                      {(hasPermission("owner") ||
-                        hasPermission("manager") ||
-                        hasPermission("family")) && (
+                      {user && (
                         <button
                           onClick={() => handleStartEditing(item)}
                           className="absolute top-2 right-2 bg-white/90 hover:bg-white text-gray-700 p-1.5 rounded-full z-10"

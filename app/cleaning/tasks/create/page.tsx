@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
-import { getMainProperty } from "@/lib/propertyService";
+import { useProperty } from "@/lib/hooks/useProperty";
 import { ArrowLeft, Upload, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -14,11 +14,12 @@ export default function CreateCleaningTask() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [property, setProperty] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { currentProperty } = useProperty();
 
   const [roomOptions, setRoomOptions] = useState([
     { id: "kitchen", label: "Kitchen" },
@@ -43,22 +44,14 @@ export default function CreateCleaningTask() {
   });
 
   useEffect(() => {
-    async function loadProperty() {
-      const propertyData = await getMainProperty();
-      setProperty(propertyData);
-    }
-    loadProperty();
-  }, []);
-
-  useEffect(() => {
     async function loadRoomTypes() {
-      if (!property?.id) return;
+      if (!currentProperty?.id) return;
 
       try {
         const { data, error } = await supabase
           .from("cleaning_room_types")
           .select("slug, name")
-          .eq("property_id", property.id);
+          .eq("property_id", currentProperty.id);
 
         if (error) throw error;
 
@@ -81,7 +74,7 @@ export default function CreateCleaningTask() {
     }
 
     loadRoomTypes();
-  }, [property]);
+  }, [currentProperty]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -146,7 +139,7 @@ export default function CreateCleaningTask() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user || !property) {
+    if (!user || !currentProperty) {
       toast.error("You must be logged in and have a property selected");
       return;
     }
@@ -164,7 +157,7 @@ export default function CreateCleaningTask() {
         .from("cleaning_tasks")
         .insert([
           {
-            property_id: property.id,
+            property_id: currentProperty.id,
             name: taskData.name,
             task: taskData.name, // Set both name and task to the same value
             description: taskData.description,
@@ -189,6 +182,10 @@ export default function CreateCleaningTask() {
       setLoading(false);
     }
   };
+
+  if (!currentProperty) {
+    return <div>No property selected</div>;
+  }
 
   return (
     <AuthenticatedLayout>

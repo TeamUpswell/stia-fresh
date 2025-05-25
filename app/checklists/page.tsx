@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import ChecklistCard from "@/components/features/checklists/ChecklistCard";
 import ChecklistForm from "@/components/features/checklists/ChecklistForm";
 import { useLoadingTimeout } from "@/hooks/useLoadingTimeout";
+import { useProperty } from "@/lib/hooks/useProperty";
 
 interface Checklist {
   id: string;
@@ -22,6 +23,8 @@ interface Checklist {
 
 export default function ChecklistsPage() {
   const { user, hasPermission } = useAuth();
+  const { currentProperty } = useProperty();
+  
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,27 +37,36 @@ export default function ChecklistsPage() {
 
   // Fetch checklists
   const fetchChecklists = useCallback(async () => {
+    // Add property check:
+    if (!currentProperty?.id) {
+      console.log("No current property selected");
+      setChecklists([]);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("checklists")
         .select("*")
+        .eq("property_id", currentProperty.id) // Filter by current property
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       setChecklists(data || []);
     } catch (error) {
       console.error("Error fetching checklists:", error);
+      setError("Failed to load checklists");
     } finally {
       setLoading(false);
     }
-  }, [setLoading, setChecklists]);
+  }, [setLoading, currentProperty?.id]); // Add currentProperty dependency
 
   useEffect(() => {
-    if (user) {
+    if (user && currentProperty?.id) { // ✅ Add currentProperty check
       fetchChecklists();
     }
-  }, [user, fetchChecklists]);
+  }, [user, currentProperty?.id, fetchChecklists]); // ✅ Add currentProperty dependency
 
   return (
     <ProtectedPageWrapper>
@@ -69,71 +81,84 @@ export default function ChecklistsPage() {
           </div>
         }
       >
-        <div className="py-8 px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold">Checklists</h1>
+        {/* ✅ Add property check: */}
+        {!currentProperty ? (
+          <div className="p-8 text-center">
+            <h2 className="text-xl font-semibold mb-2">No Property Selected</h2>
+            <p className="text-gray-600">
+              Please select a property from your account settings to view checklists.
+            </p>
+          </div>
+        ) : (
+          <div className="py-8 px-4">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex justify-between items-center mb-6">
+                {/* ✅ Update header to show property: */}
+                <h1 className="text-2xl font-bold">
+                  {currentProperty.name} - Checklists
+                </h1>
 
-              {hasPermission("manager") && (
-                <button
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg"
-                  onClick={() => setShowAddForm(true)}
-                >
-                  <PlusIcon className="h-5 w-5 mr-1" />
-                  Add Checklist
-                </button>
-              )}
-            </div>
-
-            {loading && !timedOut ? (
-              <div>Loading...</div>
-            ) : timedOut ? (
-              <div className="text-center p-8">
-                <p className="text-red-500">Loading timed out</p>
-                <p className="text-gray-600 mt-1">
-                  There might be an issue connecting to the database.
-                </p>
-                <button
-                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md"
-                  onClick={() => {
-                    setTimedOut(false);
-                    setLoading(true);
-                    fetchChecklists();
-                  }}
-                >
-                  Retry
-                </button>
-                <button
-                  className="mt-4 ml-2 px-4 py-2 border border-gray-300 rounded-md"
-                  onClick={() => (window.location.href = "/admin/diagnostics")}
-                >
-                  Run Diagnostics
-                </button>
-              </div>
-            ) : checklists.length === 0 ? (
-              <div className="text-center py-12 bg-gray-50 rounded-lg">
-                <p className="text-gray-600">No checklists found</p>
                 {hasPermission("manager") && (
-                  <p className="text-gray-500 text-sm mt-2">
-                    Create your first checklist to get started
-                  </p>
+                  <button
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg"
+                    onClick={() => setShowAddForm(true)}
+                  >
+                    <PlusIcon className="h-5 w-5 mr-1" />
+                    Add Checklist
+                  </button>
                 )}
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {checklists.map((checklist) => (
-                  <ChecklistCard
-                    key={checklist.id}
-                    checklist={checklist}
-                    onDelete={
-                      hasPermission("manager") ? fetchChecklists : undefined
-                    }
-                  />
-                ))}
-              </div>
-            )}
+
+              {loading && !timedOut ? (
+                <div>Loading...</div>
+              ) : timedOut ? (
+                <div className="text-center p-8">
+                  <p className="text-red-500">Loading timed out</p>
+                  <p className="text-gray-600 mt-1">
+                    There might be an issue connecting to the database.
+                  </p>
+                  <button
+                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md"
+                    onClick={() => {
+                      setTimedOut(false);
+                      setLoading(true);
+                      fetchChecklists();
+                    }}
+                  >
+                    Retry
+                  </button>
+                  <button
+                    className="mt-4 ml-2 px-4 py-2 border border-gray-300 rounded-md"
+                    onClick={() => (window.location.href = "/admin/diagnostics")}
+                  >
+                    Run Diagnostics
+                  </button>
+                </div>
+              ) : checklists.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg">
+                  <p className="text-gray-600">No checklists found</p>
+                  {hasPermission("manager") && (
+                    <p className="text-gray-500 text-sm mt-2">
+                      Create your first checklist to get started
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {checklists.map((checklist) => (
+                    <ChecklistCard
+                      key={checklist.id}
+                      checklist={checklist}
+                      onDelete={
+                        hasPermission("manager") ? fetchChecklists : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Add Checklist Form */}
         {showAddForm && (

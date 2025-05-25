@@ -58,7 +58,35 @@ interface PropertyFormData {
 
 export default function PropertySettings() {
   const { user } = useAuth();
-  const { currentTenant } = useTenant(); // Add this
+  const { currentTenant } = useTenant();
+
+  // ✅ Add this debug effect
+  useEffect(() => {
+    async function debugUserRole() {
+      if (!user) return;
+
+      console.log("Current user:", user);
+
+      // Check user_roles table
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("user_id", user.id);
+
+      console.log("User roles query result:", roleData, roleError);
+
+      // Check profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id);
+
+      console.log("User profile:", profileData, profileError);
+    }
+
+    debugUserRole();
+  }, [user]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -429,10 +457,22 @@ export default function PropertySettings() {
   return (
     <AuthenticatedLayout>
       <PermissionGate
-        requiredRole="manager"
+        requiredRole={["owner", "manager"]} // ✅ Array format
         fallback={
           <div className="p-8 text-center">
-            Access restricted to property managers and owners.
+            <div className="mx-auto h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Shield className="h-6 w-6 text-red-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Access Restricted
+            </h3>
+            <p className="text-gray-600">
+              Property settings are restricted to property owners and managers
+              only.
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Contact the property owner if you need to make changes.
+            </p>
           </div>
         }
       >

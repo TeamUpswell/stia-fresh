@@ -11,7 +11,7 @@ import { useAuth } from "@/components/AuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signIn, signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,19 +29,31 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
 
+    console.log("🔐 Login attempt:", { email, password: "***" });
+
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      console.log("🔐 Calling signIn...");
+      const result = await signIn(email, password);
+      console.log("🔐 SignIn result:", result);
 
-      if (error) throw error;
-
+      console.log("🔐 Login successful, redirecting...");
       router.push("/");
     } catch (error) {
+      console.error("🔴 Login error:", error);
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Add this temporary function to your login page:
+  const handleQuickSignup = async () => {
+    try {
+      console.log("🔐 Creating test account...");
+      await signUp("test@example.com", "password123");
+      console.log("✅ Account created");
+    } catch (error) {
+      console.error("🔴 Signup error:", error);
     }
   };
 
@@ -101,6 +113,15 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </div>
+
+          {/* Add this button temporarily in your JSX */}
+          <button 
+            type="button"
+            onClick={handleQuickSignup}
+            className="w-full py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 mb-4"
+          >
+            Create Test Account
+          </button>
 
           <div className="text-center mt-4">
             <p className="text-sm text-gray-600">

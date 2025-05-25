@@ -6,6 +6,11 @@ import { Building2, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function TenantSwitcher() {
+  // Property switching functionality moved to Account Settings page
+  // This component is kept for backward compatibility but doesn't render
+  return null;
+
+  /* COMMENTED OUT - keeping for reference
   const { userTenants, isLoading: tenantLoading } = useTenant();
   const { currentProperty, properties, switchProperty, isLoading: propertyLoading } = useProperty();
   const router = useRouter();
@@ -84,4 +89,5 @@ export function TenantSwitcher() {
       <ChevronDown className="absolute right-0 top-6 h-3 w-3 text-gray-400 pointer-events-none" />
     </div>
   );
+  */
 }

@@ -9,6 +9,8 @@ interface Property {
   id: string;
   name: string;
   address?: string;
+  city?: string;
+  state?: string;
   tenant_id: string;
   [key: string]: any;
 }
@@ -18,22 +20,39 @@ interface PropertyContextType {
   properties: Property[];
   isLoading: boolean;
   error: string | null;
-  switchProperty: (propertyId: string) => void;
+  switchProperty: (property: Property) => void;
   refreshProperties: () => Promise<void>;
 }
 
 const PropertyContext = createContext<PropertyContextType | undefined>(undefined);
 
 export function PropertyProvider({ children }: { children: ReactNode }) {
+  const { currentTenant, loading: tenantLoading } = useTenant();
   const { user, loading: authLoading } = useAuth();
-  const { userTenants, isLoading: tenantLoading } = useTenant();
+  
+  // Add this debug log
+  console.log("🏠 PropertyProvider Debug:", {
+    user: user?.id,
+    currentTenant: currentTenant?.id,
+    currentTenantName: currentTenant?.name,
+    tenantLoading,
+    authLoading,
+  });
+
   const [properties, setProperties] = useState<Property[]>([]);
   const [currentProperty, setCurrentProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadProperties = async () => {
-    if (!user || !userTenants.length || authLoading || tenantLoading) {
+    // ✅ Fix: Check for currentTenant instead of tenants array
+    if (!user || !currentTenant || authLoading || tenantLoading) {
+      console.log("🏠 Not loading properties - missing requirements:", {
+        user: !!user,
+        currentTenant: !!currentTenant,
+        authLoading,
+        tenantLoading
+      });
       setProperties([]);
       setCurrentProperty(null);
       setIsLoading(false);
@@ -43,66 +62,70 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
-      const tenantIds = userTenants.map(tenant => tenant.id);
-      
-      console.log("Loading properties for user tenants:", tenantIds);
+      // ✅ Fix: Use currentTenant.id directly
+      console.log("🏠 Loading properties for current tenant:", currentTenant.id);
       
       const { data, error } = await supabase
         .from("properties")
         .select("*")
-        .in("tenant_id", tenantIds)
+        .eq("tenant_id", currentTenant.id) // ✅ Use single tenant
         .order("created_at", { ascending: false });
+
+      console.log("🏠 Properties fetch result:", data, error);
 
       if (error) throw error;
 
-      console.log("Loaded properties:", data);
+      console.log("🏠 Loaded properties:", data);
       setProperties(data || []);
       
-      if ((data || []).length > 0 && !currentProperty) {
-        const firstProperty = data[0];
-        setCurrentProperty(firstProperty);
+      // ✅ Handle current property selection
+      if ((data || []).length > 0) {
+        // Check localStorage first
+        let selectedProperty = null;
         if (typeof window !== 'undefined') {
-          localStorage.setItem('currentPropertyId', firstProperty.id);
-        }
-      }
-      
-      if (typeof window !== 'undefined') {
-        const savedPropertyId = localStorage.getItem('currentPropertyId');
-        if (savedPropertyId) {
-          const savedProperty = (data || []).find(p => p.id === savedPropertyId);
-          if (savedProperty) {
-            setCurrentProperty(savedProperty);
-          } else if ((data || []).length > 0) {
-            setCurrentProperty(data[0]);
-            localStorage.setItem('currentPropertyId', data[0].id);
+          const savedPropertyId = localStorage.getItem('currentPropertyId');
+          if (savedPropertyId) {
+            selectedProperty = (data || []).find(p => p.id === savedPropertyId);
           }
         }
+        
+        // Fall back to first property if no saved selection
+        if (!selectedProperty) {
+          selectedProperty = data[0];
+        }
+        
+        setCurrentProperty(selectedProperty);
+        console.log("🏠 Set current property:", selectedProperty.name);
+        
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentPropertyId', selectedProperty.id);
+        }
+      } else {
+        setCurrentProperty(null);
       }
+
     } catch (err) {
-      console.error("Error loading properties:", err);
+      console.error("🔴 Error loading properties:", err);
       setError(err instanceof Error ? err.message : "Failed to load properties");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const switchProperty = (propertyId: string) => {
-    const property = properties.find(p => p.id === propertyId);
-    if (property) {
-      setCurrentProperty(property);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('currentPropertyId', propertyId);
-      }
-      console.log("Switched to property:", property.name);
+  const switchProperty = (property: Property) => {
+    setCurrentProperty(property);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('currentPropertyId', property.id);
     }
+    console.log("🏠 Switched to property:", property.name);
   };
 
+  // ✅ Fix: Depend on currentTenant instead of tenants
   useEffect(() => {
-    // Only load when auth and tenant loading are complete
-    if (!authLoading && !tenantLoading && userTenants.length > 0) {
+    if (user && !authLoading && !tenantLoading && currentTenant) {
       loadProperties();
     }
-  }, [userTenants, user, authLoading, tenantLoading]);
+  }, [user, authLoading, tenantLoading, currentTenant]); // ✅ Updated dependency
 
   return (
     <PropertyContext.Provider
@@ -120,21 +143,18 @@ export function PropertyProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useProperty() {
+export function usePropertyContext() {
   const context = useContext(PropertyContext);
   if (context === undefined) {
-    // Return safe defaults during SSR
-    if (typeof window === 'undefined') {
-      return {
-        currentProperty: null,
-        properties: [],
-        isLoading: true,
-        error: null,
-        switchProperty: () => {},
-        refreshProperties: async () => {},
-      };
-    }
-    throw new Error("useProperty must be used within a PropertyProvider");
+    throw new Error('usePropertyContext must be used within a PropertyProvider');
   }
   return context;
 }
+
+// For backwards compatibility
+export function useProperty() {
+  return usePropertyContext();
+}
+
+// Export the context for direct access if needed
+export { PropertyContext };

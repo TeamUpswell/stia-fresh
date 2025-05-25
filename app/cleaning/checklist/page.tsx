@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import { supabase } from "@/lib/supabase";
-import { getMainProperty } from "@/lib/propertyService";
+import { useProperty } from "@/lib/hooks/useProperty";
 import {
   CheckCircle,
   ArrowLeft,
@@ -37,7 +37,7 @@ interface Property {
 
 export default function CleaningChecklist() {
   const { user } = useAuth();
-  const [property, setProperty] = useState<Property | null>(null);
+  const { currentProperty } = useProperty();
   const [roomStats, setRoomStats] = useState<Record<string, RoomStat>>({});
   const [loading, setLoading] = useState(true);
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([
@@ -53,15 +53,14 @@ export default function CleaningChecklist() {
     async function loadData() {
       try {
         setLoading(true);
-        const propertyData = await getMainProperty();
-        setProperty(propertyData);
 
-        if (propertyData?.id) {
+        // ✅ Use currentProperty instead of getMainProperty()
+        if (currentProperty?.id) {
           // Get task statistics for each room
           const { data: tasks, error } = await supabase
             .from("cleaning_tasks")
             .select("room, is_completed")
-            .eq("property_id", propertyData.id);
+            .eq("property_id", currentProperty.id); // ✅ Use currentProperty
 
           if (error) throw error;
 
@@ -86,17 +85,17 @@ export default function CleaningChecklist() {
     }
 
     loadData();
-  }, [roomTypes]);
+  }, [roomTypes, currentProperty]); // ✅ Add currentProperty to dependencies
 
   useEffect(() => {
     async function loadCustomRooms() {
-      if (!property?.id) return;
+      if (!currentProperty?.id) return;
 
       try {
         const { data, error } = await supabase
           .from("cleaning_room_types")
           .select("slug, name, icon")
-          .eq("property_id", property.id);
+          .eq("property_id", currentProperty.id);
 
         if (error) throw error;
 
@@ -123,7 +122,7 @@ export default function CleaningChecklist() {
     }
 
     loadCustomRooms();
-  }, [property]);
+  }, [currentProperty]);
 
   return (
     <AuthenticatedLayout>
@@ -138,11 +137,21 @@ export default function CleaningChecklist() {
           </Link>
         </div>
 
-        <h1 className="text-2xl font-semibold mb-6">Cleaning Checklist</h1>
+        <h1 className="text-2xl font-semibold mb-6">
+          {currentProperty?.name} - Cleaning Checklist
+        </h1>
 
         {loading ? (
           <div className="flex justify-center">
             <div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+          </div>
+        ) : !currentProperty ? (
+          <div className="text-center py-8">
+            <h2 className="text-xl font-semibold mb-2">No Property Selected</h2>
+            <p className="text-gray-600">
+              Please select a property from your account settings to view the
+              cleaning checklist.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -4,34 +4,73 @@ import { useState, FormEvent } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 
-export default function AuthPage() {
-  const { login } = useAuth();
+export default function LoginPage() {
+  const { user, signIn, signUp } = useAuth();
   const router = useRouter();
+
+  // ✅ ADD THE DEBUG CODE HERE:
+  console.log("🔐 Login page - useAuth result:", {
+    user: !!user,
+    signIn: typeof signIn,
+    signInExists: !!signIn,
+  });
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setLoading(true);
     setError("");
 
-    try {
-      // Call login function from AuthProvider
-      const { error } = await login(email, password);
+    console.log("🔐 Login attempt:", { email, password: "***" });
 
-      if (error) {
-        setError(error.message);
+    try {
+      // ✅ Correct way - signIn throws on error, returns data on success
+      const result = await signIn(email, password);
+      console.log("🔐 SignIn result:", result);
+
+      // If we get here, login was successful
+      console.log("🔐 Login successful, redirecting...");
+      router.push("/dashboard");
+    } catch (err: any) {
+      // ✅ Catch block handles errors
+      console.error("🔴 Login error:", err);
+      setError(err.message || "An error occurred during login");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add this signup handler:
+  const handleSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    console.log("🔐 Signup attempt:", { email, password: "***" });
+
+    try {
+      const result = await signUp(email, password);
+      console.log("🔐 SignUp result:", result);
+
+      // Check if email confirmation is required
+      if (result.user && !result.session) {
+        setError(
+          "Please check your email to confirm your account before signing in."
+        );
       } else {
-        // Redirect to dashboard on successful login
+        console.log("🔐 Signup successful, redirecting...");
         router.push("/dashboard");
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred during login");
+      console.error("🔴 Signup error:", err);
+      setError(err.message || "An error occurred during signup");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -45,7 +84,7 @@ export default function AuthPage() {
         </div>
       )}
 
-      <form onSubmit={handleLogin}>
+      <form onSubmit={isSignUp ? handleSignup : handleLogin}>
         <div className="mb-4">
           <label htmlFor="email" className="block mb-1 font-medium">
             Email
@@ -76,12 +115,34 @@ export default function AuthPage() {
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
         >
-          {isLoading ? "Signing In..." : "Sign In"}
+          {loading
+            ? isSignUp
+              ? "Creating Account..."
+              : "Signing In..."
+            : isSignUp
+            ? "Create Account"
+            : "Sign In"}
         </button>
       </form>
+
+      <div className="text-center mt-4">
+        <p className="text-sm text-gray-600">
+          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError("");
+            }}
+            className="text-blue-600 hover:underline"
+          >
+            {isSignUp ? "Sign in" : "Create account"}
+          </button>
+        </p>
+      </div>
     </div>
   );
 }

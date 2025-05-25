@@ -85,7 +85,7 @@ interface WeatherData {
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const { currentProperty } = useProperty();
+  const { currentProperty, properties, switchProperty } = useProperty();
 
   // State for dashboard content
   const [upcomingVisits, setUpcomingVisits] = useState<UpcomingVisit[]>([]);
@@ -106,8 +106,8 @@ export default function Dashboard() {
           .from("reservations")
           .select("*")
           .eq("property_id", currentProperty.id)
-          .gte("check_in", today)
-          .order("check_in", { ascending: true })
+          .gte("start_date", today) // ✅ Fixed: was "check_in"
+          .order("start_date", { ascending: true }) // ✅ Fixed: was "check_in"
           .limit(5);
 
         if (error) throw error;
@@ -115,9 +115,9 @@ export default function Dashboard() {
         setUpcomingVisits(
           visits?.map((v) => ({
             id: v.id,
-            guest_name: v.guest_name || v.title,
-            check_in: v.check_in || v.start_date,
-            check_out: v.check_out || v.end_date,
+            guest_name: v.title || v.guest_name, // ✅ Fixed: title is primary
+            check_in: v.start_date, // ✅ Fixed: use start_date
+            check_out: v.end_date, // ✅ Fixed: use end_date
             guests_count: v.guests || 1,
             status: v.status || "pending",
             contact_info: v.contact_email || v.contact_phone,
@@ -141,7 +141,7 @@ export default function Dashboard() {
           .from("inventory")
           .select("*")
           .eq("property_id", currentProperty.id)
-          .or("current_stock.lte.min_stock")
+          .or("quantity.lte.threshold") // ✅ Fixed: was "current_stock.lte.min_stock"
           .order("category");
 
         if (error) throw error;
@@ -150,10 +150,12 @@ export default function Dashboard() {
           inventory
             ?.map((item) => ({
               ...item,
+              current_stock: item.quantity, // ✅ Map for interface compatibility
+              min_stock: item.threshold, // ✅ Map for interface compatibility
               status:
-                item.current_stock <= 0
+                item.quantity <= 0 // ✅ Fixed: was current_stock
                   ? ("critical" as const)
-                  : item.current_stock <= item.min_stock
+                  : item.quantity <= item.threshold // ✅ Fixed: was current_stock/min_stock
                   ? ("low" as const)
                   : ("good" as const),
             }))
@@ -196,11 +198,11 @@ export default function Dashboard() {
 
       try {
         const { data: issues, error } = await supabase
-          .from("property_issues")
+          .from("cleaning_issues") // ✅ Fixed: was "property_issues"
           .select("*")
           .eq("property_id", currentProperty.id)
           .eq("status", "open")
-          .eq("category", "maintenance")
+          .eq("category", "maintenance") // Add this filter if needed
           .order("severity", { ascending: false });
 
         if (error) throw error;
@@ -758,7 +760,7 @@ export default function Dashboard() {
                   <Link
                     href="/inventory/restock"
                     className="block w-full text-center py-2 bg-blue-600 hover:bg-blue-700 transition-colors font-medium"
-                    style={{ color: '#ffffff' }}
+                    style={{ color: "#ffffff" }}
                   >
                     Create Shopping List
                   </Link>
